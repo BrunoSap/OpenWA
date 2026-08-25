@@ -298,16 +298,6 @@ ALTER TABLE knowledge.documents
 COMMENT ON CONSTRAINT clients_timestamp_order ON knowledge.clients IS 'Ensures first_seen <= last_seen (temporal consistency)';
 
 -- ═══════════════════════════════════════════════════════════
---  COMPLETENESS: Input validation for helper functions
--- ═══════════════════════════════════════════════════════════
-
--- Will be implemented in 006_create_helper_functions.sql
--- (functions with parameter validation: threshold > 0, limit > 0, etc.)
-
--- Note: This migration prepares schema changes
--- Function improvements are in separate migration to avoid circular dependencies
-
--- ═══════════════════════════════════════════════════════════
 --  DOCUMENTATION: Encryption at rest requirement
 -- ═══════════════════════════════════════════════════════════
 
