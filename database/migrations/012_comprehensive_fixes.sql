@@ -306,7 +306,7 @@ COMMENT ON COLUMN knowledge.clients.full_name IS 'Full name - LGPD: encrypt at r
 COMMENT ON COLUMN knowledge.clients.phone IS 'Phone - LGPD: encrypt at rest via pgcrypto or storage-level encryption';
 
 COMMENT ON COLUMN intake_staging.leads.cpf IS 'CPF (validated mod-11) - LGPD: encrypt at rest via pgcrypto or storage-level encryption';
-COMMENT ON COLUMN intake_staging.leads.name IS 'Full name - LGPD: encrypt at rest via pgcrypto or storage-level encryption';
+COMMENT ON COLUMN intake_staging.leads.full_name IS 'Full name - LGPD: encrypt at rest via pgcrypto or storage-level encryption';
 COMMENT ON COLUMN intake_staging.leads.phone IS 'Phone - LGPD: encrypt at rest via pgcrypto or storage-level encryption';
 COMMENT ON COLUMN intake_staging.leads.email IS 'Email - LGPD: encrypt at rest via pgcrypto or storage-level encryption';
 
