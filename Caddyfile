@@ -1,0 +1,75 @@
+# Caddyfile - Reverse Proxy com SSL automático
+# Substitua os domínios pelos seus reais
+
+# OpenWA API
+openwa.seudominio.com {
+    reverse_proxy openwa-api:2785
+
+    # Headers de segurança
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+    }
+
+    # Rate limiting
+    rate_limit {
+        zone dynamic {
+            key {remote_host}
+            events 100
+            window 1m
+        }
+    }
+
+    # Logs
+    log {
+        output file /var/log/caddy/openwa-access.log
+        format json
+    }
+}
+
+# n8n Workflows
+n8n.seudominio.com {
+    reverse_proxy n8n:5678
+
+    # Timeout maior para webhooks longos
+    reverse_proxy {
+        timeout 300s
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+    }
+
+    log {
+        output file /var/log/caddy/n8n-access.log
+        format json
+    }
+}
+
+# Grafana (opcional)
+grafana.seudominio.com {
+    reverse_proxy grafana:3000
+}
+
+# Webhooks públicos (sem auth)
+webhooks.seudominio.com {
+    reverse_proxy n8n:5678
+
+    # Apenas rotas de webhook
+    @webhook {
+        path /webhook/* /webhook-test/*
+    }
+    reverse_proxy @webhook n8n:5678
+
+    # Rate limit mais agressivo
+    rate_limit {
+        zone webhooks {
+            key {remote_host}
+            events 50
+            window 1m
+        }
+    }
+}

@@ -1,0 +1,219 @@
+{
+  "name": "WhatsApp Unified Bot (Texto + Áudio)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-message",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 300],
+      "id": "webhook-unified",
+      "name": "Webhook Unificado",
+      "webhookId": "71e84c0d-8924-446e-94c8-a8aeb268c779"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === DETECTAR TIPO DE EVENTO ===\n\nconst body = $json.body;\n\n// Log completo do payload\nconsole.log('[DETECT] Full body:', JSON.stringify(body, null, 2));\nconsole.log('[DETECT] Event:', body.event || 'message.received');\n\n// 1. Evento de TRANSCRIÇÃO (plugin voice-transcription)\nif (body.event === 'message.transcription') {\n  const transcription = body.transcription || {};\n  \n  console.log('[DETECT] Transcription event detected');\n  console.log('[DETECT] Status:', body.status);\n  console.log('[DETECT] Transcription text:', transcription.text);\n  \n  // Se transcrição falhou ou está vazia\n  if (body.status !== 'completed' || !transcription.text || transcription.text.trim() === '') {\n    console.log('[DETECT] Skipping transcription - status:', body.status, 'text empty:', !transcription.text);\n    return {\n      json: {\n        route: 'skip',\n        reason: `Transcrição ${body.status} ou vazia`,\n        chatId: body.chatId,\n        messageId: body.messageId\n      }\n    };\n  }\n  \n  // Transcrição OK → Processar como áudio\n  console.log('[DETECT] ✅ Route: audio_transcription');\n  return {\n    json: {\n      route: 'audio_transcription',\n      chatId: body.chatId,\n      messageId: body.messageId,\n      text: transcription.text,\n      language: transcription.language || 'pt',\n      provider: transcription.provider || 'groq',\n      isAudio: true,\n      timestamp: new Date().toISOString()\n    }\n  };\n}\n\n// 2. Mensagem normal (message.received)\nconst data = body.data || {};\nconst messageType = data.type || 'text';\nconst messageBody = data.body || '';\n\nconsole.log('[DETECT] Message type:', messageType);\nconsole.log('[DETECT] Message body:', messageBody);\nconsole.log('[DETECT] ChatId:', data.chatId);\n\n// Se for ÁUDIO → Ignorar (aguardar transcrição)\nif (messageType === 'voice' || messageType === 'audio' || messageType === 'ptt') {\n  console.log('[DETECT] ⏸️ Voice message detected, SKIP (waiting for transcription)');\n  return {\n    json: {\n      route: 'skip',\n      reason: 'Aguardando transcrição de áudio',\n      chatId: data.chatId,\n      messageId: data.id\n    }\n  };\n}\n\n// Se for TEXTO → Processar\nif (messageType === 'text' || messageType === 'chat') {\n  console.log('[DETECT] ✅ Route: text_message');\n  return {\n    json: {\n      route: 'text_message',\n      chatId: data.chatId,\n      messageId: data.id,\n      from: data.from,\n      text: messageBody,\n      isAudio: false,\n      timestamp: new Date().toISOString()\n    }\n  };\n}\n\n// Outros tipos → Ignorar\nconsole.log('[DETECT] ⏸️ Unsupported type:', messageType);\nreturn {\n  json: {\n    route: 'skip',\n    reason: `Tipo não suportado: ${messageType}`,\n    chatId: data.chatId,\n    messageId: data.id\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "id": "detect-type",
+      "name": "0. Detectar Tipo"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "text",
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "text_message",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "audio",
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "audio_transcription",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [400, 300],
+      "id": "route-switch",
+      "name": "Roteamento"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === NORMALIZAR MENSAGEM DE TEXTO ===\n\nconst data = $input.first().json;\nconst messageBody = data.text || '';\n\n// Normalizar texto (remover acentos)\nconst normalize = (text) => {\n  return text\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .toLowerCase();\n};\n\nconst normalized = normalize(messageBody);\n\n// === DETECTAR TIPO DE SOLICITAÇÃO ===\nlet tipo = 'geral';\nlet urgencia = false;\nlet categoria = null;\n\n// Previdenciário\nif (normalized.match(/auxilio|beneficio|inss|doenca|afastado|incapacitado|pericia/)) {\n  tipo = 'previdenciario';\n  if (normalized.match(/auxilio|beneficio/)) categoria = 'auxilio-doenca';\n  if (normalized.match(/aposentadoria|invalidez/)) categoria = 'aposentadoria';\n  if (normalized.match(/pericia|laudo/)) categoria = 'pericia';\n}\n\n// Família\nif (normalized.match(/divorcio|separacao|separar|casal|marido|esposa/)) {\n  tipo = 'familia';\n  if (normalized.match(/divorcio|separacao/)) categoria = 'divorcio';\n  if (normalized.match(/bens|casa|carro|dividir|partilha/)) categoria = 'divisao-bens';\n  if (normalized.match(/pensao|alimentos/)) categoria = 'pensao';\n}\n\n// Acompanhamento\nif (normalized.match(/processo|andamento|resultado|como esta|liberado|disponivel/)) {\n  tipo = 'acompanhamento';\n  categoria = 'status-processo';\n}\n\n// Urgência\nif (normalized.match(/urgente|remedio|cirurgia|preciso|dinheiro|conta|pagar/)) {\n  urgencia = true;\n}\n\n// CPF?\nlet precisaCPF = false;\nif (tipo === 'acompanhamento' && !normalized.match(/\\d{11}|\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}/)) {\n  precisaCPF = true;\n}\n\nreturn {\n  json: {\n    messageOriginal: messageBody,\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.messageId,\n    messageNormalized: normalized,\n    tipo: tipo,\n    categoria: categoria,\n    urgencia: urgencia,\n    precisaCPF: precisaCPF,\n    isAudio: false,\n    timestamp: data.timestamp\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 200],
+      "id": "normalize-text",
+      "name": "1a. Normalizar Texto"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === NORMALIZAR TRANSCRIÇÃO DE ÁUDIO ===\n\nconst data = $input.first().json;\nconst messageBody = data.text || '';\n\n// Normalizar texto\nconst normalize = (text) => {\n  return text\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .toLowerCase();\n};\n\nconst normalized = normalize(messageBody);\n\n// Detecção simplificada (áudio costuma ser mais curto)\nlet tipo = 'geral';\nlet urgencia = false;\n\nif (normalized.match(/urgente|remedio|cirurgia|preciso/)) {\n  urgencia = true;\n}\n\nif (normalized.match(/processo|andamento|como esta/)) {\n  tipo = 'acompanhamento';\n}\n\nreturn {\n  json: {\n    messageOriginal: messageBody,\n    chatId: data.chatId,\n    messageId: data.messageId,\n    messageNormalized: normalized,\n    tipo: tipo,\n    urgencia: urgencia,\n    isAudio: true,\n    language: data.language,\n    provider: data.provider,\n    timestamp: data.timestamp\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 400],
+      "id": "normalize-audio",
+      "name": "1b. Normalizar Áudio"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === MONTAR PROMPT INTELIGENTE ===\n\nconst data = $input.first().json;\nconst isAudio = data.isAudio || false;\n\n// System Prompt BASE\nlet systemPrompt = `Você é assistente virtual do escritório Dr. Dênis Bernardo, especializado em direito previdenciário e de família.\n\n🎯 MISSÃO:\nFazer triagem inicial, identificar necessidades e coletar dados básicos.\n\n💬 REGRAS:\n1. TOM: Informal mas respeitoso, como vizinho de confiança\n2. LINGUAGEM: Português simples, sem juridiquês. Máximo 2-3 frases\n3. ERROS DO CLIENTE: Entenda contexto, não corrija português\n4. NUNCA invente status de processo ou prometa resultado\n\nSe não souber: \"Vou anotar e o Dr. Denis te responde.\"\n\nSEMPRE termine: \"Precisa de mais alguma coisa?\"`;\n\n// Se veio de ÁUDIO, adicionar contexto especial\nif (isAudio) {\n  systemPrompt += `\\n\\n⚠️ IMPORTANTE: Esta mensagem veio de um ÁUDIO (não foi digitada).\\n- Cliente usou voz, responda de forma natural e conversacional\\n- Confirme que entendeu: \"Ouvi seu áudio! Você disse [resumo]. Tá certo?\"`;\n}\n\n// === CONTEXTO ADICIONAL ===\nlet contextoAdicional = '';\n\nif (data.urgencia) {\n  contextoAdicional += '\\n\\n⚠️ URGÊNCIA DETECTADA! Priorize empatia.\\nResponda: \"Entendo que é urgente. Vou priorizar seu atendimento.\"';\n}\n\nif (data.tipo === 'acompanhamento' && data.precisaCPF) {\n  contextoAdicional += '\\n\\n📋 Cliente quer status mas não informou CPF. Peça: \"Pra eu consultar certinho, qual seu CPF?\"';\n}\n\n// === USER PROMPT ===\nlet userPrompt = '';\n\nif (isAudio) {\n  userPrompt = `🎤 ÁUDIO TRANSCRITO (${data.language}):\\n\"${data.messageOriginal}\"\\n\\nProvider: ${data.provider}${contextoAdicional}\\n\\nResponda confirmando que ouviu o áudio e ajude o cliente.`;\n} else {\n  userPrompt = `${contextoAdicional}\\n\\nTIPO: ${data.tipo}\\nCATEGORIA: ${data.categoria || 'não identificada'}\\n\\nMENSAGEM:\\n\"${data.messageOriginal}\"\\n\\nResponda de forma clara e curta (2-3 frases).`;\n}\n\nreturn {\n  json: {\n    systemPrompt: systemPrompt,\n    userPrompt: userPrompt,\n    chatId: data.chatId,\n    messageId: data.messageId,\n    tipo: data.tipo,\n    urgencia: data.urgencia,\n    isAudio: isAudio\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 300],
+      "id": "build-prompt",
+      "name": "2. Montar Prompt"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "={{ $json.systemPrompt }}"
+            },
+            {
+              "message": "={{ $json.userPrompt }}",
+              "messageType": "user"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [1000, 300],
+      "id": "llm-chain",
+      "name": "3. LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "qwen/qwen3.6-27b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [1000, 480],
+      "id": "groq-model",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "4H66gdwqyInkOE5m",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === LIMPAR RESPOSTA (AGRESSIVO) ===\n\n// Pegar texto do LLM\nconst llmOutput = $input.first().json;\nlet text = llmOutput.text || llmOutput.output || '';\n\nconsole.log('[CLEAN] ===== INICIO =====');\nconsole.log('[CLEAN] Raw LLM output length:', text.length);\nconsole.log('[CLEAN] First 200 chars:', text.substring(0, 200));\n\n// REGEX AGRESSIVO: Remover TUDO antes do último </think>\nconst originalLength = text.length;\n\n// Tentar múltiplas estratégias\nif (text.includes('<think>')) {\n  console.log('[CLEAN] Found <think> tag, removing...');\n  \n  // Estratégia 1: Remover tudo até o ÚLTIMO </think>\n  const lastCloseTag = text.lastIndexOf('</think>');\n  if (lastCloseTag !== -1) {\n    text = text.substring(lastCloseTag + 8); // 8 = length of '</think>'\n    console.log('[CLEAN] Strategy 1: Removed everything before last </think>');\n  }\n  \n  // Estratégia 2: Se ainda tem <think>, regex global\n  text = text.replace(/<think>[\\s\\S]*?<\\/think>/g, '');\n  console.log('[CLEAN] Strategy 2: Regex global replace');\n}\n\nconst cleanedLength = text.length;\nif (originalLength !== cleanedLength) {\n  console.log('[CLEAN] Removed', originalLength - cleanedLength, 'chars');\n}\n\n// Trim espaços e quebras de linha extras\ntext = text.trim().replace(/^\\n+/, '');\n\nconsole.log('[CLEAN] After trim length:', text.length);\n\n// Se ficou vazio, usar fallback\nif (!text || text.length === 0) {\n  console.error('[CLEAN] ERROR: Text is EMPTY after cleaning!');\n  text = 'Desculpa, tive um problema ao processar. Pode repetir?';\n}\n\n// Limitar tamanho (WhatsApp limit)\nif (text.length > 4000) {\n  console.warn('[CLEAN] Text too long, truncating to 4000 chars');\n  text = text.substring(0, 3997) + '...';\n}\n\n// Pegar dados do node \"2. Montar Prompt\"\nconst promptData = $('2. Montar Prompt').first().json;\n\nif (!promptData) {\n  console.error('[CLEAN] ERROR: Could not get data from \"2. Montar Prompt\" node');\n  throw new Error('Node \"2. Montar Prompt\" data not found');\n}\n\nconsole.log('[CLEAN] Final text length:', text.length);\nconsole.log('[CLEAN] Final text:', text);\nconsole.log('[CLEAN] ===== FIM =====');\n\nreturn {\n  json: {\n    chatId: promptData.chatId,\n    text: text,\n    messageId: promptData.messageId,\n    isAudio: promptData.isAudio\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 300],
+      "id": "clean-response",
+      "name": "4. Limpar Resposta"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://openwa-api:2785/api/sessions/75a54c72-fade-48af-9059-cf56362df076/messages/send-text",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [1400, 300],
+      "id": "send-whatsapp",
+      "name": "5. Enviar WhatsApp",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YXggRCXzzkjcD2MN",
+          "name": "Header Auth account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Unificado": {
+      "main": [[{"node": "0. Detectar Tipo", "type": "main", "index": 0}]]
+    },
+    "0. Detectar Tipo": {
+      "main": [[{"node": "Roteamento", "type": "main", "index": 0}]]
+    },
+    "Roteamento": {
+      "main": [
+        [{"node": "1a. Normalizar Texto", "type": "main", "index": 0}],
+        [{"node": "1b. Normalizar Áudio", "type": "main", "index": 0}]
+      ]
+    },
+    "1a. Normalizar Texto": {
+      "main": [[{"node": "2. Montar Prompt", "type": "main", "index": 0}]]
+    },
+    "1b. Normalizar Áudio": {
+      "main": [[{"node": "2. Montar Prompt", "type": "main", "index": 0}]]
+    },
+    "2. Montar Prompt": {
+      "main": [[{"node": "3. LLM Chain", "type": "main", "index": 0}]]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [[{"node": "3. LLM Chain", "type": "ai_languageModel", "index": 0}]]
+    },
+    "3. LLM Chain": {
+      "main": [[{"node": "4. Limpar Resposta", "type": "main", "index": 0}]]
+    },
+    "4. Limpar Resposta": {
+      "main": [[{"node": "5. Enviar WhatsApp", "type": "main", "index": 0}]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "UNIFIED_BOT_FIXED_V2",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

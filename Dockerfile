@@ -110,6 +110,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     patch \
     curl \
+    ca-certificates \
     procps \
     sqlite3 \
     ffmpeg \

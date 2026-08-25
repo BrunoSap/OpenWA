@@ -1,0 +1,225 @@
+{
+  "name": "WhatsApp Audio Transcription",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-audio",
+        "options": {
+          "responseCode": {
+            "values": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        240,
+        300
+      ],
+      "id": "webhook-transcription",
+      "name": "Webhook Audio",
+      "webhookId": "c3f3aa0f-50b5-4164-8da0-1850ab0b83c5"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === NODE 1: PROCESSAR TRANSCRIÇÃO ===\n\nconst body = $json.body;\n\n// Verificar se é transcrição\nif (body.event !== 'message.transcription') {\n  throw new Error('Evento inválido: esperado message.transcription');\n}\n\n// Extrair dados\nconst transcription = body.transcription || {};\nconst chatId = body.chatId;\nconst messageId = body.messageId;\nconst sessionId = body.sessionId;\nconst status = body.status;\n\n// Log pra debug\nconsole.log('[TRANSCRIPTION] Recebida:', {\n  chatId,\n  messageId,\n  status,\n  text: transcription.text,\n  language: transcription.language,\n  provider: transcription.provider\n});\n\n// Se falhou ou foi skipped\nif (status !== 'completed') {\n  return {\n    json: {\n      error: `Transcrição ${status}`,\n      chatId,\n      messageId\n    }\n  };\n}\n\n// Se não tem texto\nif (!transcription.text || transcription.text.trim() === '') {\n  return {\n    json: {\n      error: 'Transcrição vazia',\n      chatId,\n      messageId\n    }\n  };\n}\n\n// Retornar dados estruturados\nreturn {\n  json: {\n    type: 'audio_transcription',\n    chatId: chatId,\n    messageId: messageId,\n    sessionId: sessionId,\n    text: transcription.text,\n    language: transcription.language || 'pt',\n    provider: transcription.provider || 'groq',\n    model: transcription.model || 'whisper-large-v3-turbo',\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "id": "process-transcription",
+      "name": "1. Processar Transcrição"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === NODE 2: MONTAR PROMPT PARA ÁUDIO ===\n\nconst data = $input.first().json;\n\n// Contexto: sempre marcar que veio de áudio\nconst systemPrompt = `Você é assistente virtual do escritório Dr. Dênis Bernardo.\n\n⚠️ IMPORTANTE: Esta mensagem veio de um ÁUDIO (não foi digitada).\n- Cliente usou voz, então resposta deve ser natural e conversacional\n- Confirme que entendeu: \"Ouvi seu áudio! Você disse: [resumo]. Tá certo?\"\n\nREGRAS:\n1. Tom: Informal, empático, como vizinho de confiança\n2. Linguagem: Português simples, máx 2-3 frases\n3. Sempre confirme o que entendeu do áudio\n4. Erros de transcrição: entenda contexto\n\n💬 EXEMPLO:\nCliente (áudio): \"Olá, quanto custa o Lawapp?\"\nVocê: \"Ouvi seu áudio! A consulta é gratuita. Quer agendar? 😊\"\n\nNUNCA invente informações.\nSempre termine: \"Precisa de mais alguma coisa?\"`;\n\n// User prompt com a transcrição\nconst userPrompt = `🎤 ÁUDIO TRANSCRITO:\n\"${data.text}\"\n\nLÍNGUA DETECTADA: ${data.language}\nPROVIDER: ${data.provider} (${data.model})\n\nResponda confirmando que ouviu o áudio e ajude o cliente.`;\n\nreturn {\n  json: {\n    systemPrompt: systemPrompt,\n    userPrompt: userPrompt,\n    chatId: data.chatId,\n    messageId: data.messageId,\n    text: data.text,\n    isAudio: true\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        300
+      ],
+      "id": "build-audio-prompt",
+      "name": "2. Montar Prompt (Áudio)"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "={{ $json.systemPrompt }}"
+            },
+            {
+              "message": "={{ $json.userPrompt }}",
+              "messageType": "user"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        840,
+        300
+      ],
+      "id": "llm-audio",
+      "name": "3. LLM (Áudio)"
+    },
+    {
+      "parameters": {
+        "model": "qwen/qwen3.6-27b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        840,
+        480
+      ],
+      "id": "groq-audio",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "4H66gdwqyInkOE5m",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === NODE 4: LIMPAR RESPOSTA ===\n\nlet text = $input.first().json.text;\n\n// Remover tags <think>\ntext = text.replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim();\n\n// Pegar dados\nconst prevData = $item(\"0\").$node[\"2. Montar Prompt (Áudio)\"].json;\n\nreturn {\n  json: {\n    chatId: prevData.chatId,\n    text: text,\n    messageId: prevData.messageId,\n    wasAudio: true\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        300
+      ],
+      "id": "clean-audio-response",
+      "name": "4. Limpar Resposta"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://openwa-api:2785/api/sessions/75a54c72-fade-48af-9059-cf56362df076/messages/send-text",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1240,
+        300
+      ],
+      "id": "send-audio-response",
+      "name": "5. Enviar WhatsApp",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YXggRCXzzkjcD2MN",
+          "name": "Header Auth account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Audio": {
+      "main": [
+        [
+          {
+            "node": "1. Processar Transcrição",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1. Processar Transcrição": {
+      "main": [
+        [
+          {
+            "node": "2. Montar Prompt (Áudio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Montar Prompt (Áudio)": {
+      "main": [
+        [
+          {
+            "node": "3. LLM (Áudio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "3. LLM (Áudio)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. LLM (Áudio)": {
+      "main": [
+        [
+          {
+            "node": "4. Limpar Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Limpar Resposta": {
+      "main": [
+        [
+          {
+            "node": "5. Enviar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "AUDIO_WORKFLOW",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

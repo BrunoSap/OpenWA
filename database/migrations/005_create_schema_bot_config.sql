@@ -18,7 +18,7 @@ CREATE TABLE bot_config.auto_answer_rules (
 
     escalation_message TEXT,
 
-    updated_at TIMESTAMP DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Indexes
@@ -35,12 +35,12 @@ CREATE TABLE bot_config.cron_jobs (
     name VARCHAR(200) NOT NULL,
 
     frequency_seconds INT NOT NULL,
-    last_run TIMESTAMP,
-    next_run TIMESTAMP,
+    last_run TIMESTAMPTZ,
+    next_run TIMESTAMPTZ,
 
     enabled BOOLEAN DEFAULT TRUE,
 
-    created_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
 
     -- Constraints
     CONSTRAINT cron_jobs_frequency_check CHECK (frequency_seconds > 0)

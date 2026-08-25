@@ -14,7 +14,7 @@ CREATE TABLE telegram.lead_topics (
     telegram_group_id BIGINT NOT NULL,
     telegram_topic_id BIGINT NOT NULL,
 
-    topic_created_at TIMESTAMP DEFAULT NOW(),
+    topic_created_at TIMESTAMPTZ DEFAULT NOW(),
     topic_title VARCHAR(200),
     is_archived BOOLEAN DEFAULT FALSE
 );
@@ -37,9 +37,9 @@ CREATE TABLE telegram.client_tasks (
 
     -- Status
     status VARCHAR(20) DEFAULT 'pending',
-    created_at TIMESTAMP DEFAULT NOW(),
-    sent_at TIMESTAMP,
-    answered_at TIMESTAMP,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    sent_at TIMESTAMPTZ,
+    answered_at TIMESTAMPTZ,
 
     -- Resposta do cliente
     client_response TEXT,
@@ -72,7 +72,7 @@ CREATE TABLE telegram.topic_context (
     team_decisions JSONB[],
     mentioned_documents TEXT[],
 
-    last_updated TIMESTAMP DEFAULT NOW()
+    last_updated TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Indexes
@@ -95,7 +95,7 @@ CREATE TABLE telegram.user_permissions (
     can_view_documents BOOLEAN DEFAULT TRUE,
     can_calculate_fees BOOLEAN DEFAULT TRUE,
 
-    added_at TIMESTAMP DEFAULT NOW(),
+    added_at TIMESTAMPTZ DEFAULT NOW(),
     added_by_user_id BIGINT,
 
     -- Constraints
