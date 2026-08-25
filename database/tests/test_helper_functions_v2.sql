@@ -178,7 +178,12 @@ BEGIN
     IF elapsed_ms < 100 THEN
         RAISE NOTICE '✅ PASS: Query completed in %ms (found % results)', ROUND(elapsed_ms, 2), found_count;
     ELSE
-        RAISE WARNING '⚠️  WARN: Query took %ms (slower than expected)', ROUND(elapsed_ms, 2);
+        -- Performance degradation is acceptable up to 500ms, fail beyond that
+        IF elapsed_ms > 500 THEN
+            RAISE EXCEPTION '❌ FAIL: Query too slow: %ms (threshold: 500ms)', ROUND(elapsed_ms, 2);
+        ELSE
+            RAISE NOTICE '⚠️  PASS (slow): Query took %ms (acceptable but not optimal)', ROUND(elapsed_ms, 2);
+        END IF;
     END IF;
 END $$;
 
@@ -352,7 +357,7 @@ BEGIN
     IF limit_hit THEN
         RAISE NOTICE '✅ PASS: Rate limit enforced (blocked at ~100 calls)';
     ELSE
-        RAISE WARNING '⚠️  WARN: Rate limit may not be working correctly';
+        RAISE EXCEPTION '❌ FAIL: Rate limit not working - 105 calls succeeded without blocking';
     END IF;
 END $$;
 
