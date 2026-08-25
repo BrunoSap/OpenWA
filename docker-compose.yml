@@ -413,7 +413,7 @@ services:
 
   # ===== OPTIONAL: Built-in PostgreSQL =====
   postgres:
-    image: pgvector/pgvector:pg16-alpine
+    image: pgvector/pgvector:pg16
     container_name: openwa-postgres
     profiles: ['postgres', 'full']
     restart: unless-stopped
