@@ -187,8 +187,6 @@ CREATE INDEX IF NOT EXISTS idx_conversations_chat_session_time
     ON knowledge.conversations (chat_id, session_id, timestamp DESC)
     WHERE deleted_at IS NULL;
 
-COMMENT ON INDEX knowledge.idx_conversations_chat_session_time IS 'Composite index for session context queries (covers WHERE chat_id + session_id + ORDER BY timestamp)';
-
 -- ═══════════════════════════════════════════════════════════
 --  PERFORMANCE: Partial index WHERE embedding IS NOT NULL
 -- ═══════════════════════════════════════════════════════════
@@ -203,8 +201,6 @@ CREATE INDEX IF NOT EXISTS idx_faq_has_embedding
     ON knowledge.faq (id)
     WHERE embedding IS NOT NULL AND deleted_at IS NULL;
 
-COMMENT ON INDEX idx_conversations_has_embedding IS 'Partial index for similarity search pre-filtering (excludes NULL embeddings)';
-
 -- ═══════════════════════════════════════════════════════════
 --  PERFORMANCE: Index on documents.storage_path
 -- ═══════════════════════════════════════════════════════════
@@ -215,8 +211,6 @@ CREATE INDEX IF NOT EXISTS idx_documents_storage_path
 
 CREATE INDEX IF NOT EXISTS idx_lead_documents_storage_path
     ON intake_staging.lead_documents (storage_path);
-
-COMMENT ON INDEX idx_documents_storage_path IS 'Index for file access queries (frequent lookups by path)';
 
 -- ═══════════════════════════════════════════════════════════
 --  MAINTAINABILITY: Trigger for total_messages counter
