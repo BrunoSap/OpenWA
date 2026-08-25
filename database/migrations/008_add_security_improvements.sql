@@ -106,10 +106,12 @@ ALTER TABLE intake_staging.lead_documents
         extracted_text IS NULL OR length(extracted_text) <= 100000
     );
 
-ALTER TABLE intake_staging.lead_documents
-    ADD CONSTRAINT lead_documents_validation_notes_length CHECK (
-        validation_notes IS NULL OR length(validation_notes) <= 5000
-    );
+-- SKIPPED: validation_notes is JSONB in current schema, not TEXT
+-- Size limit enforced by existing validation_notes_size_check constraint
+-- ALTER TABLE intake_staging.lead_documents
+--     ADD CONSTRAINT lead_documents_validation_notes_length CHECK (
+--         validation_notes IS NULL OR length(validation_notes) <= 5000
+--     );
 
 -- ═══════════════════════════════════════════════════════════
 --  IMPROVE EMAIL VALIDATION
