@@ -7,7 +7,8 @@ Guias práticos para implementar e usar funcionalidades específicas do OpenWA.
 2. [Telefonia e Voz](#telefonia-voz)
 3. [Suporte Multimodal](#multimodal)
 4. [Base de Conhecimento](#knowledge-base)
-5. [System Prompts](#system-prompts)
+5. [Bot de Intake](#bot-de-intake)
+6. [System Prompts](#system-prompts)
 
 ---
 
@@ -856,6 +857,112 @@ SELECT
   AVG(CHAR_LENGTH(content)) as avg_length
 FROM knowledge_base
 GROUP BY category;
+```
+
+---
+
+## Bot de Intake
+
+### Overview
+
+O Bot de Intake faz **triagem e qualificação de leads** via WhatsApp, coletando 5 campos de forma
+conversacional (um por mensagem) e, ao concluir, expondo o lead qualificado para export a um CRM ou
+webhook externo. É implementado em `src/modules/intake` (NestJS) e orquestrado pelo workflow n8n
+`Whatsapp-Intake-Bot.json`.
+
+O motor conversacional (`advanceIntake`, em `intake-flow.ts`) é uma state machine determinística:
+o passo atual é sempre o **primeiro campo ainda vazio**, na ordem canônica abaixo.
+
+### Ordem do Fluxo Conversacional
+
+| # | Campo | Pergunta do bot | Observação |
+|---|-------|-----------------|------------|
+| 1 | `fullName` | "qual é o seu nome completo?" | — |
+| 2 | `phone` | "qual é o seu telefone para contato?" | — |
+| 3 | `email` | "qual é o seu e-mail?" | — |
+| 4 | `caseType` | "descreva brevemente a sua demanda" | texto livre |
+| 5 | `urgencyLevel` | "normal, alta ou crítica" | normaliza pt-BR → `normal`/`high`/`critical`; input inválido repete a pergunta |
+
+Ao coletar o 5º campo, o lead vira `intakeStatus='completed'` (com `intakeCompletedAt`) e o bot
+devolve uma confirmação com o resumo dos dados.
+
+### Rotas REST
+
+Todas as rotas exigem uma API key **OPERATOR** (`X-API-Key`). `sessionId` é o id da sessão WhatsApp;
+`chatId` é o identificador do chat (chave natural do lead).
+
+#### 1. Ingerir mensagem (avança o fluxo)
+
+```http
+POST /api/sessions/:sessionId/intake/messages
+X-API-Key: <operator-key>
+Content-Type: application/json
+
+{ "chatId": "5511999999999@c.us", "text": "Maria Silva" }
+```
+
+Resposta `201` (o lead + a próxima pergunta):
+
+```json
+{
+  "id": 1,
+  "chatId": "5511999999999@c.us",
+  "fullName": "Maria Silva",
+  "intakeStatus": "in_progress",
+  "reply": "Qual é o seu telefone para contato?",
+  "step": "collect_phone",
+  "completed": false
+}
+```
+
+O campo `reply` é a mensagem que o bot deve enviar de volta ao usuário no WhatsApp; `completed` vira
+`true` quando os 5 campos estão preenchidos.
+
+#### 2. Ler o lead
+
+```http
+GET /api/sessions/:sessionId/intake/leads/:chatId
+X-API-Key: <operator-key>
+```
+
+Resposta `200` com o lead persistido (`404` se não existir).
+
+#### 3. Exportar o lead qualificado
+
+```http
+POST /api/sessions/:sessionId/intake/leads/:chatId/export
+X-API-Key: <operator-key>
+Content-Type: application/json
+
+{ "url": "https://crm.example.com/leads", "headers": { "Authorization": "Bearer ..." } }
+```
+
+Resposta `200` (`{ "delivered": true, "status": 200 }`). Faz POST do payload do lead à `url`
+informada. **Só leads `completed` são exportáveis** — um lead ainda em coleta retorna `409`. O POST
+reusa o mesmo SSRF guard do módulo de webhook.
+
+### Importar o workflow no n8n
+
+1. No n8n, **Workflows → Import from File** e selecione `Whatsapp-Intake-Bot.json`.
+2. Configure as variáveis de ambiente do n8n (usadas via `$env` nos nós HTTP):
+
+   | Variável | Descrição | Exemplo |
+   |----------|-----------|---------|
+   | `OPENWA_BASE_URL` | URL base da API OpenWA | `http://openwa:3000` |
+   | `OPENWA_API_KEY` | API key **OPERATOR** enviada em `X-API-Key` | `owa_...` |
+   | `OPENWA_SESSION_ID` | id da sessão WhatsApp | `default` |
+
+3. Aponte o webhook de entrada de mensagens do OpenWA para o nó **Webhook Intake** do workflow.
+4. Ative o workflow. Cada mensagem recebida chama `POST .../intake/messages` e o `reply` retornado é
+   enviado de volta ao usuário; ao completar, o workflow chama `.../export`.
+
+### Validação E2E
+
+O ciclo completo (WhatsApp → coleta dos 5 campos → lead `completed` persistido → export recebido) é
+coberto por `test/intake-e2e-cycle.e2e-spec.ts`:
+
+```bash
+npm run test:e2e -- intake-e2e-cycle
 ```
 
 ---

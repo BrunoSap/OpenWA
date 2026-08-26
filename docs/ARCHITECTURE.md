@@ -128,56 +128,67 @@ System Prompt: ver SYSTEM_PROMPT_INTAKE.md
 
 ## Bot de Intake
 
-> ⚠️ **STATUS: SCHEMA CRIADO, IMPLEMENTAÇÃO PENDENTE** — O schema de banco (`intake_staging.*`) existe mas 
-> controller, workflow n8n e testes estão pendentes. Previsto para próxima fase do roadmap.
+> ✅ **STATUS: IMPLEMENTADO (Phase 1)** — Módulo `src/modules/intake` (controller + service + motor
+> conversacional), workflow n8n `Whatsapp-Intake-Bot.json` e cobertura E2E do ciclo completo
+> (`test/intake-e2e-cycle.e2e-spec.ts`) entregues. O schema de produção Postgres (`intake_staging.*`,
+> migration 003) permanece o caminho Postgres; a entidade `IntakeLead` é o caminho cross-dialect
+> (SQLite/Postgres) na conexão `data`.
 
 Bot especializado para **triagem e qualificação de leads** com coleta estruturada de informações.
 
-### Funcionalidades
+### Implementação
 
-- Coleta de dados do cliente (nome, telefone, email)
-- Qualificação de demanda
-- Identificação de urgência
-- Encaminhamento inteligente
-- Integração com CRM
+| Camada | Arquivo | Responsabilidade |
+|--------|---------|------------------|
+| Controller | `src/modules/intake/intake.controller.ts` | Rotas REST (`@RequireRole(OPERATOR)`) |
+| Service | `src/modules/intake/intake.service.ts` | Persistência (conexão `data`), upsert por `chatId`, export SSRF-guarded |
+| Motor de fluxo | `src/modules/intake/intake-flow.ts` | `advanceIntake` — state machine determinística (pure function) |
+| Entidade | `src/modules/intake/entities/intake-lead.entity.ts` | `IntakeLead` cross-dialect (`intake_leads`) |
+| Workflow n8n | `Whatsapp-Intake-Bot.json` | Orquestra WhatsApp → rotas de intake |
+| E2E | `test/intake-e2e-cycle.e2e-spec.ts` | Ciclo completo: mensagem → coleta → banco → export |
+
+Guia de uso das rotas e do import do workflow: ver [`GUIDES.md`](GUIDES.md#bot-de-intake).
+
+### Rotas REST
+
+- `POST /api/sessions/:sessionId/intake/messages` — ingere uma mensagem, avança o fluxo e retorna a próxima pergunta (`reply`, `step`, `completed`)
+- `GET /api/sessions/:sessionId/intake/leads/:chatId` — lê o lead persistido
+- `POST /api/sessions/:sessionId/intake/leads/:chatId/export` — exporta o lead qualificado (`completed`) para uma URL externa (409 se incompleto)
 
 ### Estrutura de Dados Coletados
 
+Cinco campos nucleares coletados em ordem (espelham `intake_staging.leads`):
+
 ```json
 {
-  "nome": "string",
-  "telefone": "string",
+  "fullName": "string",
+  "phone": "string",
   "email": "string",
-  "empresa": "string",
-  "cargo": "string",
-  "demanda": "string",
-  "urgencia": "baixa|media|alta",
-  "origem": "whatsapp",
-  "timestamp": "ISO8601"
+  "caseType": "string",
+  "urgencyLevel": "normal|high|critical",
+  "chatId": "string",
+  "intakeStatus": "in_progress|completed",
+  "intakeCompletedAt": "ISO8601"
 }
 ```
 
 ### Fluxo de Conversação
 
-1. **Saudação Inicial** - Apresentação do serviço
-2. **Coleta de Nome** - Primeira informação
-3. **Coleta de Contato** - Telefone e/ou email
-4. **Identificação de Demanda** - "Como posso ajudar?"
-5. **Qualificação** - Perguntas específicas baseadas na demanda
-6. **Avaliação de Urgência** - Timeline do cliente
-7. **Confirmação** - Resumo dos dados coletados
-8. **Encaminhamento** - Próximos passos
+A ordem canônica é determinada pelo primeiro campo vazio (`intake-flow.ts`):
 
-### System Prompt
+1. **Nome** (`collect_name`) — "qual é o seu nome completo?"
+2. **Telefone** (`collect_phone`) — "qual é o seu telefone para contato?"
+3. **E-mail** (`collect_email`) — "qual é o seu e-mail?"
+4. **Demanda** (`collect_demand`) — "descreva brevemente a sua demanda"
+5. **Urgência** (`collect_urgency`) — "normal, alta ou crítica" (normalizado para `normal`/`high`/`critical`)
+6. **Confirmação** (`completed`) — resumo dos dados; lead marcado `completed` e pronto para export
 
-O system prompt completo está documentado em [`SYSTEM_PROMPT_INTAKE.md`](archive/SYSTEM_PROMPT_INTAKE.md).
+### Segurança
 
-**Instruções Principais:**
-- Tom profissional mas amigável
-- Perguntas objetivas
-- Validação de inputs
-- Respostas concisas
-- Não inventar informações
+- Rotas exigem API key OPERATOR (`@RequireRole(ApiKeyRole.OPERATOR)`), sem `@Public`
+- Body validado por `IngestIntakeMessageDto` (class-validator: whitelist + `MaxLength`)
+- `urgencyLevel` validado no motor contra o domínio; input inválido não é gravado (repete a pergunta)
+- Export reusa `postWebhookPayload` (SSRF guard do módulo webhook); só lead `completed` é exportável
 
 ---
 
