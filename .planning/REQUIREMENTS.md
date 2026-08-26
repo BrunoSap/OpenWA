@@ -9,12 +9,12 @@ Requirements para completar e validar os fluxos E2E principais. Cada requirement
 
 ### Bot de Intake (E2E-7)
 
-- [ ] **INTAKE-01**: Sistema cria sessão de intake quando cliente inicia conversa
+- [x] **INTAKE-01**: Sistema cria sessão de intake quando cliente inicia conversa
 - [ ] **INTAKE-02**: Bot coleta dados estruturados via fluxo conversacional (nome, telefone, email, demanda, urgência)
-- [ ] **INTAKE-03**: Dados salvos em `intake_staging.*` com timestamps e metadata
+- [x] **INTAKE-03**: Dados salvos em `intake_staging.*` com timestamps e metadata
 - [ ] **INTAKE-04**: Lead qualificado exportável via webhook ou API REST
 - [ ] **INTAKE-05**: Workflow n8n orquestra fluxo completo e é importável
-- [ ] **INTAKE-06**: Controller e service implementados para gerenciar intake sessions
+- [x] **INTAKE-06**: Controller e service implementados para gerenciar intake sessions
 - [ ] **INTAKE-07**: Teste E2E valida ciclo: WhatsApp → coleta → banco → export
 
 ### Validação LLM+RAG (E2E-3)
@@ -108,12 +108,12 @@ Mapeamento requirements → fases do roadmap. Atualizado conforme execução.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INTAKE-01 | Phase 1 | Pending |
+| INTAKE-01 | Phase 1 | Complete |
 | INTAKE-02 | Phase 1 | Pending |
-| INTAKE-03 | Phase 1 | Pending |
+| INTAKE-03 | Phase 1 | Complete |
 | INTAKE-04 | Phase 1 | Pending |
 | INTAKE-05 | Phase 1 | Pending |
-| INTAKE-06 | Phase 1 | Pending |
+| INTAKE-06 | Phase 1 | Complete |
 | INTAKE-07 | Phase 1 | Pending |
 | RAG-01 | Phase 2 | Pending |
 | RAG-02 | Phase 2 | Pending |
@@ -147,11 +147,13 @@ Mapeamento requirements → fases do roadmap. Atualizado conforme execução.
 | VISION-11 | Phase 4 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 38 total
 - Mapped to phases: 38
 - Unmapped: 0 ✓
 
 **Phase breakdown:**
+
 - Phase 1 (Bot Intake): 7 requirements
 - Phase 2 (Validação LLM+RAG): 9 requirements
 - Phase 3 (Validação Áudio STT): 10 requirements

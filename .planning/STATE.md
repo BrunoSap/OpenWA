@@ -1,3 +1,17 @@
+---
+gsd_state_version: 1.0
+status: unknown
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-08-26T14:02:58.789Z"
+state_head: ca17d4b8cc3888a926343d96347d0c908254ce38
+progress:
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 4
+  completed_plans: 1
+  percent: 0
+---
+
 # State - OpenWA Platform
 
 **Última atualização**: 2026-08-26  
@@ -18,6 +32,7 @@ OpenWA está **em produção** com todas as funcionalidades core implementadas, 
 ## Estado por Componente
 
 ### Core Platform ✅
+
 | Componente | Status | Cobertura Testes | Notas |
 |------------|--------|------------------|-------|
 | Session Management | ✅ Production | ⚠️ Básica | Multi-session funcional |
@@ -27,6 +42,7 @@ OpenWA está **em produção** com todas as funcionalidades core implementadas, 
 | Rate Limiting | ✅ Production | ✅ Boa | Throttler configurável |
 
 ### AI & Intelligence ✅
+
 | Componente | Status | Cobertura Testes | Notas |
 |------------|--------|------------------|-------|
 | LLM Integration | ✅ Production | ❌ Mínima | Groq + OpenAI |
@@ -36,6 +52,7 @@ OpenWA está **em produção** com todas as funcionalidades core implementadas, 
 | n8n Integration | ✅ Production | ❌ Mínima | Plugin instalado |
 
 ### Infrastructure ✅
+
 | Componente | Status | Cobertura Testes | Notas |
 |------------|--------|------------------|-------|
 | Docker Deployment | ✅ Production | ✅ Manual | Compose funcional |
@@ -47,6 +64,7 @@ OpenWA está **em produção** com todas as funcionalidades core implementadas, 
 | Monitoring | ✅ Production | ❌ Manual | Prometheus/Grafana |
 
 ### Documentation ✅
+
 | Documento | Status | Última Atualização | Notas |
 |-----------|--------|-------------------|-------|
 | README.md | ✅ Completo | 2026-08-25 | Quick start profissional |
@@ -61,6 +79,7 @@ OpenWA está **em produção** com todas as funcionalidades core implementadas, 
 ## Métricas Atuais
 
 ### Código
+
 - **Linguagem**: TypeScript
 - **Framework**: NestJS
 - **Linhas de código**: ~30k+ (estimado)
@@ -68,12 +87,14 @@ OpenWA está **em produção** com todas as funcionalidades core implementadas, 
 - **Cobertura de testes**: ~20-30% (estimado) ⚠️ **Precisa melhoria**
 
 ### Arquitetura
+
 - **Padrão**: Layered architecture (Presentation → Application → Domain → Infrastructure)
 - **Abstrações**: Engine (`IWhatsAppEngine`), Storage, Cache, Database
 - **TypeORM Connections**: 2 (main: auth/audit, data: user data)
 - **Pluggability**: Alta (DB, Storage, Cache, Engine)
 
 ### Performance (Observada)
+
 - **Tempo de resposta API**: < 500ms (p95) ✅
 - **Latência de mensagem**: < 2s ✅
 - **QR code generation**: < 3s ✅
@@ -82,6 +103,7 @@ OpenWA está **em produção** com todas as funcionalidades core implementadas, 
 - **Sessões simultâneas**: 10+ testado ✅
 
 ### Deployment
+
 - **Docker image**: ✅ Disponível
 - **Docker Compose**: ✅ Múltiplos perfis (dev, prod, full-stack)
 - **Kubernetes**: ❌ Não implementado (roadmap)
@@ -92,12 +114,14 @@ OpenWA está **em produção** com todas as funcionalidades core implementadas, 
 ## Branches e Versões
 
 ### Branch Strategy
+
 - **main** - Production-ready, sempre deployável
 - **develop** - Development branch (se existir)
 - **feature/** - Feature branches
 - **hotfix/** - Hotfixes urgentes
 
 ### Releases Recentes
+
 - **v3.5** (2026-08-25) - Documentação consolidada
 - **v3.0** (2026-08) - LLM + Multimodal + RAG + n8n
 - **v2.0** (2026) - Multi-session + Auth + Monitoring
@@ -108,9 +132,11 @@ OpenWA está **em produção** com todas as funcionalidades core implementadas, 
 ## Trabalho em Progresso (WIP)
 
 ### 🔧 Atualmente em Desenvolvimento
+
 Nenhum trabalho ativo no momento. Roadmap E2E recém-criado (2026-08-26).
 
 ### 📋 Próximas Tarefas (Roadmap E2E)
+
 1. **Phase 1: Bot de Intake E2E** 🎯 NEXT
    - Implementar controller + service
    - Criar workflow n8n completo
@@ -135,6 +161,7 @@ Nenhum trabalho ativo no momento. Roadmap E2E recém-criado (2026-08-26).
    - Effort: ~3-4 dias
 
 ### 📋 Backlog (Futuro)
+
 - **Telefonia VibeVoice** (Fase 6) - Planejado
 - **Long-term Memory** - v2
 - **Analytics Dashboard** - v2
@@ -145,9 +172,11 @@ Nenhum trabalho ativo no momento. Roadmap E2E recém-criado (2026-08-26).
 ## Issues Conhecidos
 
 ### 🔴 Críticos
+
 Nenhum issue crítico conhecido.
 
 ### 🟡 Importantes
+
 1. **Cobertura de testes E2E ausente para fluxos AI** 🔴 **CRÍTICO**
    - Impacto: Claims multimodais não validados end-to-end
    - Mitigação: Roadmap Phases 2-4 (prioridade alta)
@@ -162,6 +191,7 @@ Nenhum issue crítico conhecido.
    - Mitigação: Backlog futuro (fora do roadmap atual)
 
 ### 🟢 Menores
+
 1. **Docs em inglês/português misturado**
    - Impacto: Consistência
    - Mitigação: Baixa prioridade
@@ -174,6 +204,7 @@ Nenhum issue crítico conhecido.
 ## Dependências
 
 ### Runtime Dependencies (package.json)
+
 - **Node.js**: 22 LTS
 - **NestJS**: ^10.x
 - **TypeORM**: ^0.3.x
@@ -184,12 +215,14 @@ Nenhum issue crítico conhecido.
 - **@aws-sdk/client-s3**: ^3.x
 
 ### Infrastructure Dependencies
+
 - **PostgreSQL**: 16+ (recomendado) ou SQLite 3.x
 - **Redis**: 7+ (opcional, mas recomendado)
 - **Docker**: 20+ & Docker Compose 2+
 - **n8n**: Latest (para automação)
 
 ### External Services
+
 - **Groq API**: LLM provider (free tier)
 - **OpenAI API**: LLM/Vision fallback (pago)
 - **S3/MinIO**: Storage opcional (produção)
@@ -199,30 +232,39 @@ Nenhum issue crítico conhecido.
 ## Configuração Atual
 
 ### Environment Variables (principais)
+
 ```bash
+
 # Engine
+
 ENGINE_TYPE=whatsapp-web.js  # ou baileys
 
 # Database
+
 DATABASE_TYPE=sqlite  # ou postgres
 DATABASE_NAME=./data/openwa.sqlite
 
 # Storage
+
 STORAGE_TYPE=local  # ou s3
 STORAGE_LOCAL_PATH=./data/media
 
 # Cache
+
 REDIS_ENABLED=false  # ou true
 
 # LLM
+
 GROQ_API_KEY=xxx
 OPENAI_API_KEY=xxx
 
 # Auth
+
 MASTER_API_KEY=xxx
 ```
 
 ### Deployment Profiles
+
 - **Minimal**: SQLite + Local + No Cache (dev/teste)
 - **Standard**: PostgreSQL + Local + Redis (small business)
 - **Enterprise**: PostgreSQL + S3 + Redis (high volume)
@@ -232,15 +274,18 @@ MASTER_API_KEY=xxx
 ## Qualidade do Código
 
 ### Linting & Formatting
+
 - **ESLint**: ✅ Configurado
 - **Prettier**: ✅ Configurado
 - **Husky**: ❓ Não verificado
 
 ### Code Review
+
 - **Strategy**: Manual (sem CI/CD ainda)
 - **Required reviewers**: 1 (assumido)
 
 ### Security
+
 - **API Key hashing**: ✅ SHA-256
 - **Input validation**: ✅ class-validator
 - **Rate limiting**: ✅ @nestjs/throttler
@@ -252,15 +297,18 @@ MASTER_API_KEY=xxx
 ## Monitoramento & Observability
 
 ### Metrics
+
 - **Prometheus**: ✅ Configurado
 - **Grafana**: ✅ Dashboards disponíveis
 - **Loki**: ✅ Logging centralizado
 
 ### Alerting
+
 - **Setup**: ⚠️ Básico
 - **Channels**: ❓ Não documentado
 
 ### Logging
+
 - **Level**: Info (production), Debug (dev)
 - **Format**: JSON structured
 - **Aggregation**: Loki
@@ -270,12 +318,14 @@ MASTER_API_KEY=xxx
 ## Backup & Recovery
 
 ### Backup Strategy
+
 - **Database**: ✅ Documentado (pg_dump ou copy SQLite)
 - **Media files**: ✅ S3 ou local backup
 - **Session auth**: ✅ Persistido em volume Docker
 - **Frequency**: Manual (não automatizado)
 
 ### Recovery
+
 - **RTO**: < 30 minutos (assumido)
 - **RPO**: Última snapshot manual
 - **Procedures**: ✅ Documentado em TROUBLESHOOTING.md
@@ -306,6 +356,7 @@ MASTER_API_KEY=xxx
 ## Changelog Recente
 
 ### 2026-08-26
+
 - ✅ Reanálise de objetivos com foco em fluxos E2E (cruzamento doc × código)
 - ✅ Identificação de 7 fluxos E2E (3 completos, 4 precisam trabalho)
 - ✅ Correção de documentação: avisos de status em GUIDES.md e ARCHITECTURE.md
@@ -314,18 +365,21 @@ MASTER_API_KEY=xxx
 - ✅ STATE.md atualizado com novo roadmap
 
 ### 2026-08-25
+
 - ✅ Consolidação de documentação (50+ → 5 arquivos temáticos)
 - ✅ Criação de docs/archive/ com histórico
 - ✅ README profissional
 - ✅ Guias completos (ARCHITECTURE, SETUP, GUIDES, WORKFLOWS, TROUBLESHOOTING)
 
 ### 2026-08-22
+
 - ✅ Correção de bugs SSL certificate no Docker
 - ✅ Instalação de plugin n8n
 - ✅ Documentação de arquitetura global
 - ✅ Implementação de integration fabric
 
 ### 2026-08 (início)
+
 - ✅ Implementação completa de LLM integration
 - ✅ Multimodal support (STT + Vision)
 - ✅ RAG com pgvector
@@ -334,3 +388,20 @@ MASTER_API_KEY=xxx
 ---
 
 **Fim do STATE.md** - Documento vivo, atualizar conforme mudanças significativas.
+
+## Performance Metrics
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 01-bot-de-intake-e2e P01 | 25min | 3 tasks | 8 files |
+
+## Decisions
+
+- [Phase ?]: Tabela intake flat 'intake_leads' cross-dialect na conexao 'data'; migration 003 (intake_staging.leads) e o caminho Postgres de producao
+- [Phase ?]: Colunas string nullable declaram type:'varchar' explicito (union string|null e inferido como Object e rejeitado pelo better-sqlite3)
+
+## Session
+
+**Last session:** 2026-08-26T14:02:58.775Z
+**Stopped at:** Completed 01-01-PLAN.md
+**Resume file:** None
