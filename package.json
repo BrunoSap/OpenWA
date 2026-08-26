@@ -114,6 +114,7 @@
     "@eslint/js": "^10.0.1",
     "@faker-js/faker": "^10.6.0",
     "@langchain/core": "^1.2.9",
+    "@langchain/openai": "^1.5.10",
     "@nestjs/cli": "^11.0.24",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.1.29",
