@@ -75,14 +75,18 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 
 **Effort:** ~2-3 dias (setup de teste + casos + CI)
 
-**Plans:** 6 plans (4 executed + 2 gap closure)
+**Status:** ✅ **COMPLETE** (2026-08-26)
+
+**Plans:** 6/6 plans executed (3 waves + 2 gap closure)
 
 - [x] 02-01-PLAN.md — Tracer E2E: ciclo RAG completo com busca exata (Wave 1)
 - [x] 02-02-PLAN.md — Expansão: fuzzy search + LLM-as-judge + fallback (Wave 2)
 - [x] 02-03-PLAN.md — Métricas: latência (p50/p95/p99) + precision@k/recall@k (Wave 2)
 - [x] 02-04-PLAN.md — CI/CD: GitHub Actions workflow para testes RAG (Wave 3)
-- [ ] 02-05-PLAN.md — Gap closure: instalar @langchain/openai (desbloqueia RAG-03) (Wave 1)
-- [ ] 02-06-PLAN.md — Gap closure: validar/executar workflow RAG E2E em CI real (RAG-09) (Wave 1)
+- [x] 02-05-PLAN.md — Gap closure: @langchain/openai já instalado (RAG-03) ✅
+- [x] 02-06-PLAN.md — Gap closure: workflow RAG E2E validado em CI (RAG-09) ✅
+
+**Verification:** 9/9 truths verified (02-VERIFICATION.md)
 
 ---
 

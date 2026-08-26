@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 status: in_progress
-stopped_at: Completed 01-04-PLAN.md
-last_updated: "2026-08-26T14:21:05.226Z"
+stopped_at: Completed Phase 2 (Validação E2E Texto+LLM+RAG)
+last_updated: "2026-08-26T20:52:00.000Z"
 state_head: 3bdd921c7dab33be5c845eb92662445536c01f5b
 progress:
   total_phases: 4
-  completed_phases: 0
-  total_plans: 4
-  completed_plans: 4
-  percent: 0
+  completed_phases: 2
+  total_plans: 10
+  completed_plans: 10
+  percent: 50
 ---
 
 # State - OpenWA Platform
@@ -133,24 +133,23 @@ OpenWA está **em produção** com todas as funcionalidades core implementadas, 
 
 ### 🔧 Atualmente em Desenvolvimento
 
-Nenhum trabalho ativo no momento. Roadmap E2E recém-criado (2026-08-26).
+Nenhum trabalho ativo no momento.
 
 ### 📋 Próximas Tarefas (Roadmap E2E)
 
-1. **Phase 1: Bot de Intake E2E** 🎯 NEXT
-   - Implementar controller + service
-   - Criar workflow n8n completo
-   - Integrar schema `intake_staging.*`
-   - Teste E2E: WhatsApp → coleta → banco → export
-   - Effort: ~3-5 dias
+1. **Phase 1: Bot de Intake E2E** ✅ COMPLETE (2026-08-26)
+   - Controller + service implementados
+   - Workflow n8n completo (Whatsapp-Intake-Bot.json)
+   - Schema `intake_staging.leads` integrado
+   - Teste E2E completo validado
 
-2. **Phase 2: Validação E2E Texto+LLM+RAG**
-   - Criar teste E2E automatizado
-   - Validar latência (<3s) e acurácia RAG
-   - Setup CI/CD pipeline
-   - Effort: ~2-3 dias
+2. **Phase 2: Validação E2E Texto+LLM+RAG** ✅ COMPLETE (2026-08-26)
+   - Testes E2E automatizados (6 test cases)
+   - Validação de latência (p95 < 3s) e métricas RAG (precision@5 >= 0.8)
+   - CI/CD pipeline com GitHub Actions
+   - Score: 9/9 truths verified
 
-3. **Phase 3: Validação E2E Áudio STT**
+3. **Phase 3: Validação E2E Áudio STT** 🎯 NEXT
    - Criar teste E2E para workflow existente
    - Validar transcrição (>90% acurácia)
    - Effort: ~2-3 dias
@@ -177,16 +176,20 @@ Nenhum issue crítico conhecido.
 
 ### 🟡 Importantes
 
-1. **Cobertura de testes E2E ausente para fluxos AI** 🔴 **CRÍTICO**
-   - Impacto: Claims multimodais não validados end-to-end
-   - Mitigação: Roadmap Phases 2-4 (prioridade alta)
-2. **Bot de Intake documentado mas não implementado** 🔴 **CRÍTICO**
-   - Impacto: Feature core sem código funcional
-   - Mitigação: Roadmap Phase 1 (próxima)
-3. **Cobertura de testes unitários baixa** (~20-30%)
+1. **Bot de Intake implementado e testado** ✅ RESOLVED (Phase 1, 2026-08-26)
+   - Controller + service + workflow n8n completo
+   - Teste E2E full-cycle validado
+2. **Validação E2E Texto+LLM+RAG completa** ✅ RESOLVED (Phase 2, 2026-08-26)
+   - Suite de 6 testes E2E cobrindo pgvector + LLM-as-judge
+   - CI/CD pipeline com GitHub Actions
+   - Score: 9/9 truths verified
+3. **Cobertura de testes E2E áudio/visão ausente** 🟡 **IMPORTANTE**
+   - Impacto: Claims multimodais STT/Vision não validados E2E
+   - Mitigação: Phases 3-4 (próximas)
+4. **Cobertura de testes unitários baixa** (~20-30%)
    - Impacto: Risco de regressões
-   - Mitigação: Incremental nas Phases 2-4 (CI/CD)
-4. **Horizontal scaling não implementado**
+   - Mitigação: Incremental
+5. **Horizontal scaling não implementado**
    - Impacto: Limitação de escala (single instance)
    - Mitigação: Backlog futuro (fora do roadmap atual)
 
@@ -334,12 +337,13 @@ MASTER_API_KEY=xxx
 
 ## Próximos Passos Imediatos
 
-1. ✅ **Onboarding GSD completo** (este documento)
+1. ✅ **Onboarding GSD completo**
 2. ✅ **Reanálise de objetivos focada em E2E** (2026-08-26)
 3. ✅ **Roadmap E2E criado** (4 fases, 38 requirements)
-4. 🎯 **NEXT: Rodar `/gsd-plan-phase 1`** para planejar Bot de Intake
-5. 📋 **Executar Phase 1** (controller + workflow + testes)
-6. 📋 **Executar Phases 2-4** (validação multimodal E2E)
+4. ✅ **Phase 1 completa** (Bot de Intake E2E)
+5. ✅ **Phase 2 completa** (Validação E2E Texto+LLM+RAG)
+6. 🎯 **NEXT: Phase 3** (Validação E2E Áudio STT)
+7. 📋 **Phase 4** (Implementação E2E Vision)
 
 ---
 
@@ -357,12 +361,14 @@ MASTER_API_KEY=xxx
 
 ### 2026-08-26
 
-- ✅ Reanálise de objetivos com foco em fluxos E2E (cruzamento doc × código)
-- ✅ Identificação de 7 fluxos E2E (3 completos, 4 precisam trabalho)
-- ✅ Correção de documentação: avisos de status em GUIDES.md e ARCHITECTURE.md
-- ✅ Roadmap E2E criado (4 fases, 38 requirements rastreáveis)
-- ✅ REQUIREMENTS.md atualizado com mapeamento fase → requirements
-- ✅ STATE.md atualizado com novo roadmap
+- ✅ **Phase 1 completa**: Bot de Intake E2E (4 plans, 10 tasks, 21 files, 1h workflow)
+- ✅ **Phase 2 completa**: Validação E2E Texto+LLM+RAG (6 plans, 9/9 truths verified)
+  - 6 testes E2E automatizados (pgvector semantic search)
+  - LLM-as-judge faithfulness validation
+  - Performance metrics (latency p95 < 3s, precision@5 >= 0.8)
+  - CI/CD pipeline com GitHub Actions validado
+- ✅ Reanálise de objetivos com foco em fluxos E2E
+- ✅ Roadmap E2E criado (4 fases, 38 requirements)
 
 ### 2026-08-25
 
