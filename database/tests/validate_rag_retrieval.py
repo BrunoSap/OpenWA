@@ -51,11 +51,11 @@ def calculate_recall_at_k(
 def test_rag_precision_at_k():
     """RAG-08: Measure precision@k and recall@k for semantic search"""
     conn = psycopg2.connect(
-        dbname=os.getenv('POSTGRES_DB', 'openwa'),
-        user=os.getenv('POSTGRES_USER', 'openwa'),
-        host=os.getenv('POSTGRES_HOST', 'localhost'),
-        port=int(os.getenv('POSTGRES_PORT', 5432)),
-        password=os.getenv('POSTGRES_PASSWORD', '')
+        dbname=os.getenv('PGDATABASE', os.getenv('POSTGRES_DB', 'openwa')),
+        user=os.getenv('PGUSER', os.getenv('POSTGRES_USER', 'openwa')),
+        host=os.getenv('PGHOST', os.getenv('POSTGRES_HOST', 'localhost')),
+        port=int(os.getenv('PGPORT', os.getenv('POSTGRES_PORT', '5432'))),
+        password=os.getenv('PGPASSWORD', os.getenv('POSTGRES_PASSWORD', ''))
     )
     cursor = conn.cursor()
 
