@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { IntakeLead } from './entities/intake-lead.entity';
 import { advanceIntake, IntakeFlowState, IntakeStep } from './intake-flow';
+import { postWebhookPayload } from '../webhook/utils/deliver-once';
 import { createLogger } from '../../common/services/logger.service';
 
 /** How many raw message texts case_data.messages retains — bounds unbounded growth (T-02-03). */
@@ -109,5 +110,51 @@ export class IntakeService {
       throw new NotFoundException(`Intake lead ${id} not found`);
     }
     return lead;
+  }
+
+  /**
+   * Export a qualified lead to an external URL (webhook out). Only a lead that finished the flow
+   * ('completed') is exportable — an in-progress lead throws ConflictException, so partial personal
+   * data never leaves the system (threat T-02-01). The POST reuses postWebhookPayload, the shared
+   * SSRF-guarded delivery core, so the same host allowlist/guard the webhook module enforces applies
+   * here — no second HTTP client. Returns whether the receiver answered 2xx and its status.
+   */
+  async export(
+    chatId: string,
+    target: { url: string; headers?: Record<string, string> },
+  ): Promise<{ delivered: boolean; status?: number }> {
+    const lead = await this.getByChatId(chatId);
+    if (lead.intakeStatus !== 'completed') {
+      throw new ConflictException('Lead intake not completed');
+    }
+
+    const payload = {
+      id: lead.id,
+      chatId: lead.chatId,
+      fullName: lead.fullName,
+      phone: lead.phone,
+      email: lead.email,
+      caseType: lead.caseType,
+      urgencyLevel: lead.urgencyLevel,
+      caseData: lead.caseData,
+      intakeStatus: lead.intakeStatus,
+      intakeCompletedAt: lead.intakeCompletedAt,
+    };
+
+    const headers = {
+      ...(target.headers ?? {}),
+      'Content-Type': 'application/json',
+      'User-Agent': 'OpenWA-Intake/1.0.0',
+    };
+
+    try {
+      const { status } = await postWebhookPayload(target.url, JSON.stringify(payload), headers, 10000);
+      this.logger.debug('Exported intake lead', { chatId, leadId: lead.id, status });
+      return { delivered: true, status };
+    } catch (error) {
+      // A non-2xx or a network/SSRF error: report as not delivered without leaking the destination.
+      this.logger.warn('Intake lead export failed', { chatId, leadId: lead.id, error: String(error) });
+      return { delivered: false };
+    }
   }
 }

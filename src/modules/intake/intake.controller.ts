@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { IntakeService } from './intake.service';
-import { IngestIntakeMessageDto } from './dto';
+import { ExportIntakeDto, IngestIntakeMessageDto } from './dto';
 import { IntakeLead } from './entities/intake-lead.entity';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
@@ -44,5 +44,21 @@ export class IntakeController {
   @ApiResponse({ status: 404, description: 'No intake lead for this chat id' })
   async read(@Param('chatId') chatId: string): Promise<IntakeLead> {
     return this.intakeService.getByChatId(chatId);
+  }
+
+  @Post('leads/:chatId/export')
+  @HttpCode(200)
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Export a completed intake lead to an external URL (webhook out)' })
+  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'chatId', description: 'WhatsApp chat id the lead is keyed by' })
+  @ApiResponse({ status: 200, description: 'Export attempted; body reports delivery outcome' })
+  @ApiResponse({ status: 404, description: 'No intake lead for this chat id' })
+  @ApiResponse({ status: 409, description: 'Lead intake is not completed and cannot be exported' })
+  async export(
+    @Param('chatId') chatId: string,
+    @Body() dto: ExportIntakeDto,
+  ): Promise<{ delivered: boolean; status?: number }> {
+    return this.intakeService.export(chatId, { url: dto.url, headers: dto.headers });
   }
 }
