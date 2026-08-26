@@ -36,11 +36,11 @@ Requirements para completar e validar os fluxos E2E principais. Cada requirement
 - [ ] **STT-03**: Teste valida transcrição via Groq Whisper
 - [ ] **STT-04**: Teste valida que LLM processa transcrição e responde
 - [ ] **STT-05**: Teste cobre caso: áudio limpo em português
-- [ ] **STT-06**: Teste cobre caso: áudio limpo em inglês
-- [ ] **STT-07**: Teste cobre caso: áudio com ruído de fundo
+- [x] **STT-06**: Teste cobre caso: áudio limpo em inglês
+- [x] **STT-07**: Teste cobre caso: áudio com ruído de fundo
 - [ ] **STT-08**: Acurácia transcrição medida (>90% em áudio limpo)
 - [ ] **STT-09**: Latência medida (<5s para 10s de áudio)
-- [ ] **STT-10**: Fallback quando transcrição falha (timeout, erro API)
+- [x] **STT-10**: Fallback quando transcrição falha (timeout, erro API)
 
 ### Implementação Vision (E2E-5)
 
@@ -129,11 +129,11 @@ Mapeamento requirements → fases do roadmap. Atualizado conforme execução.
 | STT-03 | Phase 3 | Pending |
 | STT-04 | Phase 3 | Pending |
 | STT-05 | Phase 3 | Pending |
-| STT-06 | Phase 3 | Pending |
-| STT-07 | Phase 3 | Pending |
+| STT-06 | Phase 3 | Complete |
+| STT-07 | Phase 3 | Complete |
 | STT-08 | Phase 3 | Pending |
 | STT-09 | Phase 3 | Pending |
-| STT-10 | Phase 3 | Pending |
+| STT-10 | Phase 3 | Complete |
 | VISION-01 | Phase 4 | Pending |
 | VISION-02 | Phase 4 | Pending |
 | VISION-03 | Phase 4 | Pending |

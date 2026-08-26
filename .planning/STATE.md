@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
 status: in_progress
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-08-26T21:58:02.236Z"
-state_head: 3ab46295e525d015eb7b03c95d04980fb5221f95
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-08-26T22:03:55.214Z"
+state_head: 10f37dc5e76b3d9844b1388bcff8a56f146c623b
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 13
-  completed_plans: 11
+  completed_plans: 12
   percent: 0
 ---
 
@@ -404,6 +404,7 @@ MASTER_API_KEY=xxx
 | Phase 01-bot-de-intake-e2e P02 | 20min | 3 tasks | 8 files |
 | Phase 01-bot-de-intake-e2e P04 | 4min | 2 tasks | 3 files |
 | Phase 03 P01 | 297 | 3 tasks | 6 files |
+| Phase 03-valida-o-e2e-udio-stt P02 | 129 | 3 tasks | 6 files |
 
 ## Decisions
 
@@ -415,9 +416,12 @@ MASTER_API_KEY=xxx
 - [Phase ?]: Normalização de acentos na wordAccuracy via NFD para medir acurácia semântica real
 - [Phase ?]: Placeholder .ogg com skip gracioso permite progresso sem bloquear commit
 - [Phase ?]: LLM via Groq (llama-3.3-70b-versatile) mantém coerência com stack do projeto
+- [Phase ?]: Threshold tolerante 0.6 para PT ruidoso (vs 0.9 clean) — acurácia degradada medida explicitamente
+- [Phase ?]: Wrapper transcribeWithFallback retorna {ok: false, fallbackReason} em vez de lançar — resiliência determinística
+- [Phase ?]: buildFallbackReply retorna mensagem ao usuário em PT-BR — UX consistente com bot de Intake
 
 ## Session
 
-**Last session:** 2026-08-26T21:58:02.174Z
-**Stopped at:** Completed 03-01-PLAN.md
+**Last session:** 2026-08-26T22:03:55.143Z
+**Stopped at:** Completed 03-02-PLAN.md
 **Resume file:** None
