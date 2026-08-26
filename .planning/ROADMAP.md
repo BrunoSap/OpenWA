@@ -41,11 +41,11 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 
 **Effort:** ~3-5 dias (controller + service + workflow + testes)
 
-**Plans:** 1/4 plans executed (3 waves)
+**Plans:** 2/4 plans executed (3 waves)
 
 - [x] 01-01-PLAN.md — Tracer E2E: entidade IntakeLead + service + controller + registro nas conexões 'data' (Wave 1)
 - [ ] 01-02-PLAN.md — Fluxo conversacional estruturado + exportação do lead qualificado (Wave 2)
-- [ ] 01-03-PLAN.md — Workflow n8n Whatsapp-Intake-Bot.json orquestrando ingest→reply (Wave 2)
+- [x] 01-03-PLAN.md — Workflow n8n Whatsapp-Intake-Bot.json orquestrando ingest→reply (Wave 2)
 - [ ] 01-04-PLAN.md — Teste E2E do ciclo completo + atualização de documentação (Wave 3)
 
 ---

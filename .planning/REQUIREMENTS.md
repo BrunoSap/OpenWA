@@ -13,7 +13,7 @@ Requirements para completar e validar os fluxos E2E principais. Cada requirement
 - [ ] **INTAKE-02**: Bot coleta dados estruturados via fluxo conversacional (nome, telefone, email, demanda, urgência)
 - [x] **INTAKE-03**: Dados salvos em `intake_staging.*` com timestamps e metadata
 - [ ] **INTAKE-04**: Lead qualificado exportável via webhook ou API REST
-- [ ] **INTAKE-05**: Workflow n8n orquestra fluxo completo e é importável
+- [x] **INTAKE-05**: Workflow n8n orquestra fluxo completo e é importável
 - [x] **INTAKE-06**: Controller e service implementados para gerenciar intake sessions
 - [ ] **INTAKE-07**: Teste E2E valida ciclo: WhatsApp → coleta → banco → export
 
@@ -112,7 +112,7 @@ Mapeamento requirements → fases do roadmap. Atualizado conforme execução.
 | INTAKE-02 | Phase 1 | Pending |
 | INTAKE-03 | Phase 1 | Complete |
 | INTAKE-04 | Phase 1 | Pending |
-| INTAKE-05 | Phase 1 | Pending |
+| INTAKE-05 | Phase 1 | Complete |
 | INTAKE-06 | Phase 1 | Complete |
 | INTAKE-07 | Phase 1 | Pending |
 | RAG-01 | Phase 2 | Pending |
