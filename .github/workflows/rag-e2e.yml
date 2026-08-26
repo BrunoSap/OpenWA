@@ -88,14 +88,13 @@ jobs:
           PGPASSWORD=test_password psql -h localhost -U openwa -d openwa -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
       - name: Run database migrations
-        run: npm run migration:run
+        run: bash database/scripts/run_migrations_v2.sh
         env:
-          DATABASE_TYPE: postgres
-          DATABASE_HOST: localhost
-          DATABASE_PORT: 5432
-          DATABASE_USERNAME: openwa
-          DATABASE_PASSWORD: test_password
-          DATABASE_NAME: openwa
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: openwa
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: openwa
 
       - name: Seed test fixtures
         run: |
