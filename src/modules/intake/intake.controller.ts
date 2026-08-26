@@ -18,14 +18,21 @@ export class IntakeController {
 
   @Post('messages')
   @RequireRole(ApiKeyRole.OPERATOR)
-  @ApiOperation({ summary: 'Ingest an inbound WhatsApp message into an intake lead (upsert by chat_id)' })
+  @ApiOperation({ summary: 'Ingest an inbound WhatsApp message; advances the intake flow and returns the lead + next reply' })
   @ApiParam({ name: 'sessionId', description: 'Session ID' })
-  @ApiResponse({ status: 201, description: 'Intake lead created or updated' })
+  @ApiResponse({ status: 201, description: 'Intake lead advanced (created or updated)' })
   async ingest(
     @Param('sessionId') sessionId: string,
     @Body() dto: IngestIntakeMessageDto,
-  ): Promise<IntakeLead> {
-    return this.intakeService.ingestMessage({ sessionId, chatId: dto.chatId, text: dto.text });
+  ): Promise<IntakeLead & { reply: string; step: string; completed: boolean }> {
+    const { lead, reply, step, completed } = await this.intakeService.ingestMessage({
+      sessionId,
+      chatId: dto.chatId,
+      text: dto.text,
+    });
+    // The bot needs the next question to send back to the user; the lead fields stay top-level so
+    // the tracer (which reads body.id/chatId/intakeStatus) keeps working unchanged.
+    return Object.assign(lead, { reply, step, completed });
   }
 
   @Get('leads/:chatId')

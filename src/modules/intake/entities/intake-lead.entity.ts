@@ -6,7 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { jsonColumnType } from '../../../common/utils/column-types';
+import { dateColumnType, jsonColumnType } from '../../../common/utils/column-types';
 
 /**
  * A lead captured during WhatsApp intake, on the DATA connection (SQLite dev/test, Postgres prod).
@@ -53,6 +53,12 @@ export class IntakeLead {
 
   @Column({ name: 'intake_status', default: 'in_progress' })
   intakeStatus!: string;
+
+  // Set once when the conversational flow collects all five fields (Plan 02). Cross-dialect via
+  // dateColumnType() ('timestamp' on Postgres, 'text' on SQLite) — mirrors the intake_completed_at
+  // column of intake_staging.leads without hardcoding a Postgres-only type on the SQLite path.
+  @Column({ name: 'intake_completed_at', type: dateColumnType(), nullable: true })
+  intakeCompletedAt!: Date | string | null;
 
   @CreateDateColumn({ name: 'intake_started_at' })
   intakeStartedAt!: Date;
