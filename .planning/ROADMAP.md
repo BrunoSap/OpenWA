@@ -75,6 +75,13 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 
 **Effort:** ~2-3 dias (setup de teste + casos + CI)
 
+**Plans:** 4 plans (3 waves)
+
+- [ ] 02-01-PLAN.md — Tracer E2E: ciclo RAG completo com busca exata (Wave 1)
+- [ ] 02-02-PLAN.md — Expansão: fuzzy search + LLM-as-judge + fallback (Wave 2)
+- [ ] 02-03-PLAN.md — Métricas: latência (p50/p95/p99) + precision@k/recall@k (Wave 2)
+- [ ] 02-04-PLAN.md — CI/CD: GitHub Actions workflow para testes RAG (Wave 3)
+
 ---
 
 ## Phase 3: Validação E2E Áudio STT 🎯
