@@ -87,6 +87,20 @@ jobs:
         run: |
           PGPASSWORD=test_password psql -h localhost -U openwa -d openwa -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
+      - name: Create schema_migrations table
+        run: |
+          PGPASSWORD=test_password psql -h localhost -U openwa -d openwa <<'SQL'
+          CREATE TABLE IF NOT EXISTS public.schema_migrations (
+              id BIGSERIAL PRIMARY KEY,
+              version VARCHAR(100) NOT NULL UNIQUE,
+              description VARCHAR(255),
+              applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+              execution_time_ms INT NOT NULL DEFAULT 0,
+              checksum VARCHAR(64),
+              CONSTRAINT schema_migrations_execution_time_check CHECK (execution_time_ms >= 0)
+          );
+          SQL
+
       - name: Run database migrations
         run: bash database/scripts/run_migrations_v2.sh
         env:
