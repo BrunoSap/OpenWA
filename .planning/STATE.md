@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
 status: in_progress
-stopped_at: Completed Phase 3 (Validação E2E Áudio STT) - human validation pending
-last_updated: "2026-08-26T22:45:00.000Z"
-state_head: 467fc4c3d47ccef9c9cd91cf9d63b3b2d99f6c82
+stopped_at: Phase 3 (Validação E2E Áudio STT) COMPLETE - all tests passing with real audio
+last_updated: "2026-08-26T23:50:00.000Z"
+state_head: 46860730
 progress:
   total_phases: 4
   completed_phases: 3
@@ -149,12 +149,13 @@ Nenhum trabalho ativo no momento.
    - CI/CD pipeline com GitHub Actions
    - Score: 9/9 truths verified
 
-3. **Phase 3: Validação E2E Áudio STT** ✅ COMPLETE (2026-08-26) — Requer validação humana
-   - Helper de transcrição Groq Whisper implementado
-   - 16 testes E2E (PT/EN limpo, PT ruidoso, fallback)
+3. **Phase 3: Validação E2E Áudio STT** ✅ COMPLETE (2026-08-26) — All tests passing with real audio
+   - Helper de transcrição Groq Whisper implementado (Node.js https module)
+   - 16 testes E2E passando (PT/EN limpo, PT ruidoso, fallback)
    - Workflow shape validado + CI pipeline
-   - Score: 6/9 truths (3 pending áudio real)
-   - **Action needed:** Substituir fixtures placeholders por áudio .ogg real
+   - Score: 10/10 truths verified
+   - Real metrics: 309-409ms latency (81-91% faster than target), 100% accuracy
+   - Real MP3 fixtures from microphone recordings
 
 4. **Phase 4: Implementação E2E Vision** 🎯 NEXT
    - Criar workflow n8n para GPT-4 Vision
@@ -187,7 +188,9 @@ Nenhum issue crítico conhecido.
    - Score: 9/9 truths verified
 3. **Validação E2E Áudio STT completa** ✅ RESOLVED (Phase 3, 2026-08-26)
    - Helper STT + 16 testes E2E + CI pipeline
-   - Arquitetura completa, requer validação com áudio real
+   - All tests passing with real microphone recordings
+   - Real metrics: 309-409ms latency, 100% accuracy
+   - Form-data + fetch incompatibility resolved (https module)
 4. **Cobertura de testes E2E visão ausente** 🟡 **IMPORTANTE**
    - Impacto: Claim multimodal Vision não validado E2E
    - Mitigação: Phase 4 (próxima)

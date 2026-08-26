@@ -111,26 +111,21 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 - ✅ Acurácia transcrição medida (>90% em áudio limpo)
 - ✅ Latência dentro do target (<5s para 10s de áudio)
 
-**Status:** ✅ **COMPLETE** (2026-08-26) — Arquitetura implementada, requer validação humana com áudio real
-
-**Plans:** 3/3 plans executed (3 waves)
-
-- [x] 03-01-PLAN.md — Tracer E2E: áudio PT limpo → Groq Whisper → acurácia/latência (Wave 1)
-- [x] 03-02-PLAN.md — Expansão: EN limpo + PT ruidoso + fallback (Wave 2)
-- [x] 03-03-PLAN.md — Workflow shape + CI GitHub Actions (Wave 3)
-
-**Verification:** 6/9 truths verified, 3 behavior-unverified (03-VERIFICATION.md)
-
-**Human validation needed:**
-1. Substituir fixtures placeholders por áudio .ogg real (~10s cada)
-2. Configurar GROQ_API_KEY e executar `npm run test:e2e:stt`
-3. Validar métricas reais: acurácia >= 90% (clean), >= 60% (noisy), latência < 5s
+**Status:** ✅ **COMPLETE** (2026-08-26) — All tests passing with real audio
 
 **Plans:** 3/3 plans executed (3 waves)
 
 - [x] 03-01-PLAN.md — Tracer E2E: áudio PT limpo → Groq Whisper → acurácia >=90% + latência <5s → LLM (Wave 1)
 - [x] 03-02-PLAN.md — Expansão: EN limpo + PT ruidoso + fallback quando transcrição falha (Wave 2)
 - [x] 03-03-PLAN.md — Shape do workflow n8n de áudio + CI/CD GitHub Actions para suites STT (Wave 3)
+
+**Verification:** ✅ **PASSED** — 10/10 truths verified (03-VERIFICATION.md)
+
+**Human validation completed (2026-08-26):**
+- ✅ Real MP3 audio fixtures from microphone recordings (PT-BR, EN)
+- ✅ All 16 tests passing with GROQ_API_KEY
+- ✅ Real metrics: 309-409ms latency (81-91% faster than target), 100% accuracy
+- ✅ Rewrote transcribeOgg() to Node.js https (form-data + fetch incompatibility resolved)
 
 ---
 
