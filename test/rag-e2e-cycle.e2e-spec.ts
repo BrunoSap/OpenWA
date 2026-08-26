@@ -83,6 +83,12 @@ describe('RAG E2E (full cycle)', () => {
     // Get the 'data' connection which hosts knowledge.faq
     dataSource = app.get(getDataSourceToken('data'));
 
+    // Skip tests if not using PostgreSQL (pgvector is PostgreSQL-only)
+    if (dataSource.options.type !== 'postgres') {
+      console.warn('⚠️  Skipping RAG E2E cycle tests: PostgreSQL with pgvector required');
+      return;
+    }
+
     const authService = app.get(AuthService);
     apiKey = (await authService.createApiKey({ name: 'e2e-rag-cycle', role: ApiKeyRole.ADMIN })).rawKey;
 
@@ -130,6 +136,11 @@ describe('RAG E2E (full cycle)', () => {
    * RAG-04: Exact match query (similarity near 1.0) returns the correct FAQ.
    */
   it('RAG-01/04: exact match query returns contextual FAQ with high similarity', async () => {
+    if (dataSource.options.type !== 'postgres') {
+      console.log('⚠️  Test skipped: PostgreSQL with pgvector required');
+      return;
+    }
+
     // Query embedding for "Como dar entrada no INSS?" (same as FAQ #1)
     const queryEmbedding = TEST_FAQS[0].embedding;
     const embeddingStr = '[' + queryEmbedding.join(',') + ']';
@@ -177,6 +188,12 @@ describe('RAG E2E (full cycle)', () => {
    * Validates that pgvector correctly orders results by similarity score.
    */
   it('RAG-02: semantic search returns results ordered by similarity', async () => {
+    if (dataSource.options.type !== 'postgres') {
+      console.log('⚠️  Test skipped: PostgreSQL with pgvector required');
+      return;
+    }
+
+
     // Query with the first FAQ's embedding
     const queryEmbedding = TEST_FAQS[0].embedding;
     const embeddingStr = '[' + queryEmbedding.join(',') + ']';
