@@ -226,6 +226,11 @@ describe('RAG E2E (full cycle)', () => {
    * Query: "Como fazer pedido de aposentadoria INSS?" (paraphrase of "Como dar entrada no INSS?")
    */
   it('RAG-04: fuzzy semantic match returns relevant FAQ', async () => {
+    if (dataSource.options.type !== 'postgres') {
+      console.log('⚠️  Test skipped: PostgreSQL with pgvector required');
+      return;
+    }
+
     // For a paraphrased query, we'd need a different embedding.
     // In this tracer we'll use a slightly modified embedding (simulating semantic similarity).
     // A real test would generate this via an embeddings API call.
@@ -258,6 +263,11 @@ describe('RAG E2E (full cycle)', () => {
    * Validates that semantic similarity (>= 0.8) catches rephrased questions.
    */
   it('RAG-05: fuzzy semantic search returns relevant docs (similarity >= 0.8)', async () => {
+    if (dataSource.options.type !== 'postgres') {
+      console.log('⚠️  Test skipped: PostgreSQL with pgvector required');
+      return;
+    }
+
     // Paraphrased query: "Quero fazer pedido de aposentadoria pelo INSS"
     // Should match FAQ "Como dar entrada no INSS?"
     // Using 90% scaled vector to simulate semantic closeness
@@ -291,6 +301,11 @@ describe('RAG E2E (full cycle)', () => {
    * This test validates the search directly, not through an API endpoint.
    */
   it('RAG-02: pgvector similarity score >= 0.8 for valid matches', async () => {
+    if (dataSource.options.type !== 'postgres') {
+      console.log('⚠️  Test skipped: PostgreSQL with pgvector required');
+      return;
+    }
+
     // Direct query to validate pgvector returns high similarity for known match
     const queryEmbedding = TEST_FAQS[0].embedding;
     const embeddingStr = '[' + queryEmbedding.join(',') + ']';
@@ -319,6 +334,11 @@ describe('RAG E2E (full cycle)', () => {
    * When query has no semantic match, system should acknowledge lack of context.
    */
   it('RAG-06: no match in KB returns empty results (no hallucination)', async () => {
+    if (dataSource.options.type !== 'postgres') {
+      console.log('⚠️  Test skipped: PostgreSQL with pgvector required');
+      return;
+    }
+
     // Completely unrelated query: generate orthogonal vector
     // Using negative values to ensure minimal overlap with test data
     const unrelatedEmbedding = Array(1536).fill(0).map((_, i) => -0.001 * (i + 1));
