@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 status: in_progress
-stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-08-26T14:07:35.119Z"
-state_head: 3614572628dcb93ce422aeb2a2c9c95afa706ba3
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-08-26T14:13:48.488Z"
+state_head: 5f68ba5df7208599c92e3a75e5cd603e3d0fefb8
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
-  percent: 50
+  completed_plans: 3
+  percent: 0
 ---
 
 # State - OpenWA Platform
@@ -395,14 +395,17 @@ MASTER_API_KEY=xxx
 |------|----------|-------|-------|
 | Phase 01-bot-de-intake-e2e P01 | 25min | 3 tasks | 8 files |
 | Phase 01-bot-de-intake-e2e P03 | 3min | 2 tasks | 2 files |
+| Phase 01-bot-de-intake-e2e P02 | 20min | 3 tasks | 8 files |
 
 ## Decisions
 
 - [Phase ?]: Tabela intake flat 'intake_leads' cross-dialect na conexao 'data'; migration 003 (intake_staging.leads) e o caminho Postgres de producao
 - [Phase ?]: Colunas string nullable declaram type:'varchar' explicito (union string|null e inferido como Object e rejeitado pelo better-sqlite3)
+- [Phase ?]: [Phase 1]: advanceIntake pure function (state machine); urgencyLevel validado no motor contra normal/high/critical
+- [Phase ?]: [Phase 1]: export do lead reusa postWebhookPayload (SSRF guard); lead incompleto -> 409
 
 ## Session
 
-**Last session:** 2026-08-26T14:07:35.099Z
-**Stopped at:** Completed 01-03-PLAN.md
+**Last session:** 2026-08-26T14:13:48.470Z
+**Stopped at:** Completed 01-02-PLAN.md
 **Resume file:** None
