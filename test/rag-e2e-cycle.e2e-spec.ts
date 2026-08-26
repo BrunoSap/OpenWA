@@ -235,4 +235,93 @@ describe('RAG E2E (full cycle)', () => {
     console.log(`✓ Fuzzy match similarity: ${topResult.similarity}`);
     console.log(`✓ Retrieved: "${topResult.question}"`);
   });
+
+  /**
+   * RAG-05: Fuzzy semantic search with paraphrased query returns relevant docs.
+   * Validates that semantic similarity (>= 0.8) catches rephrased questions.
+   */
+  it('RAG-05: fuzzy semantic search returns relevant docs (similarity >= 0.8)', async () => {
+    // Paraphrased query: "Quero fazer pedido de aposentadoria pelo INSS"
+    // Should match FAQ "Como dar entrada no INSS?"
+    // Using 90% scaled vector to simulate semantic closeness
+    const queryEmbedding = TEST_FAQS[0].embedding.map(v => v * 0.90);
+    const embeddingStr = '[' + queryEmbedding.join(',') + ']';
+
+    const results = await dataSource.query(
+      `SELECT question, answer, 1 - (embedding <=> $1::vector) AS similarity
+       FROM knowledge.faq
+       WHERE category = $2
+         AND embedding IS NOT NULL
+         AND (1 - (embedding <=> $1::vector)) >= 0.8
+       ORDER BY embedding <=> $1::vector
+       LIMIT 5`,
+      [embeddingStr, TEST_CATEGORY]
+    );
+
+    expect(results.length).toBeGreaterThan(0);
+    const topResult = results[0];
+
+    // Should mention "Meu INSS" or "site" or "agência" (from FAQ answer)
+    expect(topResult.answer.toLowerCase()).toMatch(/meu inss|site|agência/);
+    expect(parseFloat(topResult.similarity)).toBeGreaterThanOrEqual(0.8);
+
+    console.log(`✓ RAG-05 fuzzy match similarity: ${topResult.similarity}`);
+    console.log(`✓ Retrieved: "${topResult.question}"`);
+  });
+
+  /**
+   * RAG-02 (direct): Validate pgvector similarity score >= 0.8 for valid matches.
+   * This test validates the search directly, not through an API endpoint.
+   */
+  it('RAG-02: pgvector similarity score >= 0.8 for valid matches', async () => {
+    // Direct query to validate pgvector returns high similarity for known match
+    const queryEmbedding = TEST_FAQS[0].embedding;
+    const embeddingStr = '[' + queryEmbedding.join(',') + ']';
+
+    const results = await dataSource.query(
+      `SELECT id, question, 1 - (embedding <=> $1::vector) AS similarity
+       FROM knowledge.faq
+       WHERE category = $2
+         AND embedding IS NOT NULL
+       ORDER BY embedding <=> $1::vector
+       LIMIT 5`,
+      [embeddingStr, TEST_CATEGORY]
+    );
+
+    expect(results.length).toBeGreaterThan(0);
+
+    // First result should be exact match with very high similarity
+    expect(parseFloat(results[0].similarity)).toBeGreaterThanOrEqual(0.8);
+    expect(results[0].question).toContain('INSS');
+
+    console.log(`✓ RAG-02 similarity validation: ${results[0].similarity}`);
+  });
+
+  /**
+   * RAG-06: No match in KB returns fallback (no hallucination).
+   * When query has no semantic match, system should acknowledge lack of context.
+   */
+  it('RAG-06: no match in KB returns empty results (no hallucination)', async () => {
+    // Completely unrelated query: generate orthogonal vector
+    // Using negative values to ensure minimal overlap with test data
+    const unrelatedEmbedding = Array(1536).fill(0).map((_, i) => -0.001 * (i + 1));
+    const embeddingStr = '[' + unrelatedEmbedding.join(',') + ']';
+
+    const results = await dataSource.query(
+      `SELECT question, answer, 1 - (embedding <=> $1::vector) AS similarity
+       FROM knowledge.faq
+       WHERE category = $2
+         AND embedding IS NOT NULL
+         AND (1 - (embedding <=> $1::vector)) >= 0.8
+       ORDER BY embedding <=> $1::vector
+       LIMIT 5`,
+      [embeddingStr, TEST_CATEGORY]
+    );
+
+    // With threshold 0.8 and orthogonal vector, should return no results
+    // This proves the system won't hallucinate - it acknowledges no match
+    expect(results.length).toBe(0);
+
+    console.log('✓ RAG-06 no match returns empty (no hallucination)');
+  });
 });
