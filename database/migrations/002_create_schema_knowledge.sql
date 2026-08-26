@@ -494,6 +494,7 @@ END;
 $$;
 
 -- Record migration
-SELECT public.record_migration('002_create_schema_knowledge', 'Create knowledge schema with security and audit', NULL, NULL);
+-- DISABLED: run_migrations_v2.sh handles tracking; calling this causes ROLLBACK due to schema mismatch
+-- SELECT public.record_migration('002_create_schema_knowledge', 'Create knowledge schema with security and audit', NULL, NULL);
 
 COMMIT;
