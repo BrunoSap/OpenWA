@@ -1,4 +1,5 @@
 name: RAG E2E Tests
+# Workflow validation: 2026-08-26 (Gap 2 closure)
 
 on:
   pull_request:
