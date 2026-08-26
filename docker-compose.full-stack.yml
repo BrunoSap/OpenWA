@@ -1,0 +1,376 @@
+# 🚀 Stack Completo: OpenWA + n8n + Redis + PostgreSQL
+# Atendimento WhatsApp com LLM (Produção)
+
+services:
+  # ========================================
+  # OpenWA API (WhatsApp Gateway)
+  # ========================================
+  openwa-api:
+    image: openwa/openwa-api:latest
+    container_name: openwa-api
+    restart: unless-stopped
+    ports:
+      - "2785:2785"
+    environment:
+      # Database
+      - DATABASE_TYPE=postgres
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=openwa
+      - DATABASE_USER=openwa
+      - DATABASE_PASSWORD=openwa_secure_2026
+
+      # Redis Cache
+      - REDIS_ENABLED=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+      # Storage (S3-compatible opcional)
+      - STORAGE_TYPE=filesystem
+      - STORAGE_PATH=/app/data/media
+
+      # Webhook Queue
+      - WEBHOOK_QUEUE_ENABLED=true
+      - WEBHOOK_QUEUE_REDIS_HOST=redis
+      - WEBHOOK_QUEUE_REDIS_PORT=6379
+      - WEBHOOK_QUEUE_CONCURRENCY=10
+
+      # Rate Limiting
+      - RATE_LIMIT_ENABLED=true
+      - RATE_LIMIT_MAX=20
+      - RATE_LIMIT_WINDOW=60000
+
+      # Session Settings
+      - DEFAULT_ENGINE=whatsapp-web.js
+      - PUPPETEER_ARGS=--no-sandbox,--disable-setuid-sandbox
+
+      # Security
+      - NODE_ENV=production
+      - CSP_UPGRADE_INSECURE_REQUESTS=false
+      - TRUSTED_PROXIES=172.16.0.0/12
+
+      # Plugins
+      - PLUGINS_ENABLED=true
+      - PLUGINS_DIR=/app/data/plugins
+
+      # MCP (opcional para agentes AI)
+      - MCP_ENABLED=true
+      - MCP_READONLY=false
+      - MCP_RATE_LIMIT_MAX=60
+
+    volumes:
+      - openwa_data:/app/data
+      - openwa_sessions:/app/data/sessions
+      - openwa_media:/app/data/media
+      - openwa_plugins:/app/data/plugins
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - openwa-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2785/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ========================================
+  # n8n (Workflow Automation)
+  # ========================================
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      # Database
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=n8n_secure_2026
+
+      # Queue Mode (para escalar)
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - EXECUTIONS_MODE=queue
+
+      # Authentication
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-ChangeMeInProduction}
+
+      # Webhooks
+      - WEBHOOK_URL=http://localhost:5678/
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+
+      # Timezone
+      - GENERIC_TIMEZONE=America/Sao_Paulo
+      - TZ=America/Sao_Paulo
+
+      # Executions
+      - EXECUTIONS_DATA_SAVE_ON_ERROR=all
+      - EXECUTIONS_DATA_SAVE_ON_SUCCESS=all
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=336  # 14 dias
+
+      # Performance
+      - N8N_PAYLOAD_SIZE_MAX=32
+      - NODE_FUNCTION_ALLOW_BUILTIN=*
+      - NODE_FUNCTION_ALLOW_EXTERNAL=*
+
+      # Encryption
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-generate-a-secure-32-char-key}
+
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - n8n_files:/files
+    depends_on:
+      - postgres
+      - redis
+      - openwa-api
+    networks:
+      - openwa-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ========================================
+  # n8n Worker (opcional, para escalar)
+  # ========================================
+  n8n-worker-1:
+    image: n8nio/n8n:latest
+    container_name: n8n-worker-1
+    restart: unless-stopped
+    command: worker
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=n8n_secure_2026
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - EXECUTIONS_MODE=queue
+      - GENERIC_TIMEZONE=America/Sao_Paulo
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-generate-a-secure-32-char-key}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - n8n_files:/files
+    depends_on:
+      - postgres
+      - redis
+      - n8n
+    networks:
+      - openwa-network
+
+  n8n-worker-2:
+    image: n8nio/n8n:latest
+    container_name: n8n-worker-2
+    restart: unless-stopped
+    command: worker
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=n8n_secure_2026
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - EXECUTIONS_MODE=queue
+      - GENERIC_TIMEZONE=America/Sao_Paulo
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-generate-a-secure-32-char-key}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - n8n_files:/files
+    depends_on:
+      - postgres
+      - redis
+      - n8n
+    networks:
+      - openwa-network
+
+  # ========================================
+  # PostgreSQL (Database)
+  # ========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres_secure_2026}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - openwa-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c max_connections=200
+      -c work_mem=16MB
+
+  # ========================================
+  # Redis (Cache + Queue)
+  # ========================================
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - openwa-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========================================
+  # Caddy (Reverse Proxy + SSL)
+  # ========================================
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - openwa-network
+    depends_on:
+      - openwa-api
+      - n8n
+
+  # ========================================
+  # PostgreSQL Backup (Opcional)
+  # ========================================
+  pg-backup:
+    image: prodrigestivill/postgres-backup-local:16
+    container_name: pg-backup
+    restart: unless-stopped
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=openwa,n8n
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres_secure_2026}
+      - SCHEDULE=@daily
+      - BACKUP_KEEP_DAYS=7
+      - BACKUP_KEEP_WEEKS=4
+      - BACKUP_KEEP_MONTHS=6
+    volumes:
+      - postgres_backups:/backups
+    depends_on:
+      - postgres
+    networks:
+      - openwa-network
+
+  # ========================================
+  # Monitoring: Prometheus + Grafana (Opcional)
+  # ========================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - openwa-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=redis-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - openwa-network
+
+# ========================================
+# Volumes
+# ========================================
+volumes:
+  openwa_data:
+    driver: local
+  openwa_sessions:
+    driver: local
+  openwa_media:
+    driver: local
+  openwa_plugins:
+    driver: local
+  n8n_data:
+    driver: local
+  n8n_files:
+    driver: local
+  postgres_data:
+    driver: local
+  postgres_backups:
+    driver: local
+  redis_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# ========================================
+# Networks
+# ========================================
+networks:
+  openwa-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

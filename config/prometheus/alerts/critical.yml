@@ -1,0 +1,310 @@
+# ==============================================================================
+# CRITICAL ALERTS - AAA GRADE
+# ==============================================================================
+# Target: MTTR ≤10min | Alert latency <30s | Zero false positives
+# Telegram notification: <1min | PagerDuty escalation: 5min
+# ==============================================================================
+
+groups:
+
+  # ==============================================================================
+  # AVAILABILITY ALERTS (99.97% uptime target)
+  # ==============================================================================
+  - name: availability
+    interval: 15s
+    rules:
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+          sla_impact: high
+        annotations:
+          summary: "Service {{ $labels.job }} is DOWN"
+          description: "{{ $labels.job }} on {{ $labels.instance }} has been down for more than 1 minute. MTTR target: 10min."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/service-down"
+          dashboard_url: "https://grafana.yourdomain.com/d/service-overview"
+
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m])) by (service)
+            /
+            sum(rate(http_requests_total[5m])) by (service)
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          category: reliability
+          sla_impact: high
+        annotations:
+          summary: "High error rate on {{ $labels.service }}"
+          description: "{{ $labels.service }} has {{ $value | humanizePercentage }} error rate (5xx responses) over the last 5 minutes. SLA breach imminent."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/high-error-rate"
+
+      - alert: DatabaseConnectionPoolExhausted
+        expr: |
+          (
+            pg_stat_activity_count{state="active"}
+            /
+            pg_settings_max_connections
+          ) > 0.9
+        for: 2m
+        labels:
+          severity: critical
+          category: database
+          sla_impact: high
+        annotations:
+          summary: "PostgreSQL connection pool near exhaustion"
+          description: "Database connection pool is at {{ $value | humanizePercentage }} capacity. New connections will start failing soon."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/db-connection-pool"
+
+  # ==============================================================================
+  # PERFORMANCE ALERTS (p95 first token ≤900ms, throughput ≥50 tok/s)
+  # ==============================================================================
+  - name: performance
+    interval: 30s
+    rules:
+
+      - alert: HighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service)
+          ) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+          sla_impact: medium
+        annotations:
+          summary: "High p95 latency on {{ $labels.service }}"
+          description: "{{ $labels.service }} p95 latency is {{ $value }}s (target: ≤0.9s). Performance SLA at risk."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/high-latency"
+
+      - alert: LLMFirstTokenLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(llm_first_token_latency_seconds_bucket[5m])) by (le, provider)
+          ) > 0.9
+        for: 3m
+        labels:
+          severity: critical
+          category: performance
+          sla_impact: high
+        annotations:
+          summary: "LLM first token latency breach ({{ $labels.provider }})"
+          description: "{{ $labels.provider }} p95 first token latency is {{ $value }}s (SLA: ≤0.9s). User experience degraded."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/llm-latency"
+
+      - alert: LLMThroughputLow
+        expr: |
+          rate(llm_tokens_generated_total[5m])
+          /
+          rate(llm_requests_total[5m])
+          < 50
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+          sla_impact: medium
+        annotations:
+          summary: "LLM throughput below target"
+          description: "Average LLM throughput is {{ $value }} tokens/s (target: ≥50 tok/s). Check provider API health."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/llm-throughput"
+
+  # ==============================================================================
+  # RESOURCE EXHAUSTION (Prevent cascading failures)
+  # ==============================================================================
+  - name: resources
+    interval: 30s
+    rules:
+
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes
+          ) / node_memory_MemTotal_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          category: resources
+          sla_impact: medium
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value | humanizePercentage }}. OOM killer may activate soon."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/high-memory"
+
+      - alert: HighCPUUsage
+        expr: |
+          (
+            100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+          ) > 80
+        for: 10m
+        labels:
+          severity: warning
+          category: resources
+          sla_impact: low
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}%. Check for runaway processes."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/high-cpu"
+
+      - alert: DiskSpaceLow
+        expr: |
+          (
+            node_filesystem_avail_bytes{fstype!="tmpfs",fstype!="overlay"}
+            /
+            node_filesystem_size_bytes{fstype!="tmpfs",fstype!="overlay"}
+          ) < 0.15
+        for: 5m
+        labels:
+          severity: critical
+          category: resources
+          sla_impact: high
+        annotations:
+          summary: "Disk space critically low on {{ $labels.instance }}"
+          description: "Filesystem {{ $labels.mountpoint }} has only {{ $value | humanizePercentage }} space remaining. Database writes may fail."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/disk-space"
+
+      - alert: RedisMemoryHigh
+        expr: |
+          redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          category: resources
+          sla_impact: medium
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis is using {{ $value | humanizePercentage }} of max memory. Eviction policy may activate."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/redis-memory"
+
+  # ==============================================================================
+  # DATA INTEGRITY & BACKUP
+  # ==============================================================================
+  - name: data_integrity
+    interval: 1h
+    rules:
+
+      - alert: BackupFailed
+        expr: |
+          time() - backup_last_success_timestamp_seconds > 86400
+        for: 1h
+        labels:
+          severity: critical
+          category: data_integrity
+          sla_impact: high
+        annotations:
+          summary: "Backup has not succeeded in 24+ hours"
+          description: "Last successful backup was {{ $value | humanizeDuration }} ago. RPO=0 SLA at risk."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/backup-failure"
+
+      - alert: PostgresReplicationLag
+        expr: |
+          pg_replication_lag_seconds > 30
+        for: 5m
+        labels:
+          severity: warning
+          category: data_integrity
+          sla_impact: medium
+        annotations:
+          summary: "PostgreSQL replication lag high"
+          description: "Replication lag is {{ $value }}s. Failover may have stale data."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/replication-lag"
+
+  # ==============================================================================
+  # SECURITY & ANOMALIES
+  # ==============================================================================
+  - name: security
+    interval: 1m
+    rules:
+
+      - alert: UnusualTrafficSpike
+        expr: |
+          (
+            rate(http_requests_total[5m])
+            /
+            avg_over_time(rate(http_requests_total[5m])[1h:5m])
+          ) > 3
+        for: 5m
+        labels:
+          severity: warning
+          category: security
+          sla_impact: low
+        annotations:
+          summary: "Unusual traffic spike detected"
+          description: "Traffic is {{ $value }}x normal levels. Possible DDoS or bot attack."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/traffic-spike"
+
+      - alert: HighLoginFailureRate
+        expr: |
+          rate(auth_login_failures_total[5m]) > 10
+        for: 3m
+        labels:
+          severity: warning
+          category: security
+          sla_impact: low
+        annotations:
+          summary: "High login failure rate"
+          description: "{{ $value }} failed login attempts per second. Possible brute force attack."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/brute-force"
+
+  # ==============================================================================
+  # BUSINESS METRICS (UX & Cost)
+  # ==============================================================================
+  - name: business
+    interval: 5m
+    rules:
+
+      - alert: LowFirstContactResolution
+        expr: |
+          (
+            sum(rate(conversations_resolved_first_contact_total[1h]))
+            /
+            sum(rate(conversations_total[1h]))
+          ) < 0.55
+        for: 30m
+        labels:
+          severity: warning
+          category: ux
+          sla_impact: medium
+        annotations:
+          summary: "First Contact Resolution below target"
+          description: "FCR is {{ $value | humanizePercentage }} (target: ≥55%). User experience degrading."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/low-fcr"
+
+      - alert: HighEscalationRate
+        expr: |
+          (
+            sum(rate(conversations_escalated_total[1h]))
+            /
+            sum(rate(conversations_total[1h]))
+          ) > 0.15
+        for: 30m
+        labels:
+          severity: warning
+          category: ux
+          sla_impact: medium
+        annotations:
+          summary: "Escalation rate above target"
+          description: "Escalation rate is {{ $value | humanizePercentage }} (target: ≤15%). AI resolution quality degrading."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/high-escalation"
+
+      - alert: CostPerConversationHigh
+        expr: |
+          (
+            sum(rate(llm_api_cost_usd_total[24h]))
+            /
+            sum(rate(conversations_resolved_total[24h]))
+          ) > 0.15
+        for: 1h
+        labels:
+          severity: warning
+          category: cost
+          sla_impact: low
+        annotations:
+          summary: "Cost per conversation exceeds target"
+          description: "Cost per resolved conversation is ${{ $value }} (target: ≤$0.15). Check for inefficient prompts or provider pricing."
+          runbook_url: "https://wiki.yourdomain.com/runbooks/high-cost"

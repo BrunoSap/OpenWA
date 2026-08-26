@@ -1,0 +1,32 @@
+[
+  {
+    "query": "Como dar entrada no INSS?",
+    "query_embedding": [0.001, 0.002, 0.003],
+    "relevant_doc_ids": [1],
+    "notes": "Exact match - FAQ ID 1 from test fixtures"
+  },
+  {
+    "query": "Quero fazer pedido de aposentadoria pelo INSS",
+    "query_embedding": [0.0009, 0.0019, 0.0029],
+    "relevant_doc_ids": [1],
+    "notes": "Paraphrased query - should retrieve FAQ ID 1"
+  },
+  {
+    "query": "Qual o prazo para recurso?",
+    "query_embedding": [0.002, 0.004, 0.006],
+    "relevant_doc_ids": [2],
+    "notes": "Partial match - FAQ ID 2 about INSS appeal deadline"
+  },
+  {
+    "query": "Como solicitar auxílio-doença?",
+    "query_embedding": [0.0015, 0.003, 0.0045],
+    "relevant_doc_ids": [3],
+    "notes": "Exact match - FAQ ID 3"
+  },
+  {
+    "query": "Preciso de ajuda com benefício por doença",
+    "query_embedding": [0.00145, 0.0029, 0.00435],
+    "relevant_doc_ids": [3],
+    "notes": "Semantic match - should retrieve FAQ ID 3"
+  }
+]

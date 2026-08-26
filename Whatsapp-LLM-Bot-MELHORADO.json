@@ -1,0 +1,228 @@
+{
+  "name": "Whatsapp LLM Bot - Intake Inteligente",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-message",
+        "options": {
+          "responseCode": {
+            "values": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        240,
+        300
+      ],
+      "id": "acf6d46b-9cdc-4c6e-b295-bdfd5daa6dba",
+      "name": "Webhook",
+      "webhookId": "71e84c0d-8924-446e-94c8-a8aeb268c779"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === NODE 1: NORMALIZAR E DETECTAR CONTEXTO ===\n\n// Pegar dados do webhook\nconst messageBody = $json.body.data.body || '';\nconst chatId = $json.body.data.chatId;\nconst from = $json.body.data.from;\nconst messageId = $json.body.data.id;\n\n// Normalizar texto (remover acentos para busca)\nconst normalize = (text) => {\n  return text\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .toLowerCase();\n};\n\nconst normalized = normalize(messageBody);\n\n// === DETECTAR TIPO DE SOLICITAÇÃO ===\nlet tipo = 'geral';\nlet urgencia = false;\nlet categoria = null;\n\n// Previdenciário\nif (normalized.match(/auxilio|auxílio|beneficio|benefício|inss|doenca|doença|afastado|incapacitado|pericia|perícia/)) {\n  tipo = 'previdenciario';\n  \n  if (normalized.match(/auxilio|beneficio/)) categoria = 'auxilio-doenca';\n  if (normalized.match(/aposentadoria|invalidez/)) categoria = 'aposentadoria';\n  if (normalized.match(/pericia|perícia|laudo/)) categoria = 'pericia';\n}\n\n// Família\nif (normalized.match(/divorcio|divórcio|separacao|separação|separar|casal|marido|esposa/)) {\n  tipo = 'familia';\n  \n  if (normalized.match(/divorcio|separacao/)) categoria = 'divorcio';\n  if (normalized.match(/bens|casa|carro|dividir|partilha/)) categoria = 'divisao-bens';\n  if (normalized.match(/pensao|pensão|alimentos/)) categoria = 'pensao';\n}\n\n// Acompanhamento\nif (normalized.match(/processo|andamento|resultado|como esta|liberado|disponivel/)) {\n  tipo = 'acompanhamento';\n  categoria = 'status-processo';\n}\n\n// === DETECTAR URGÊNCIA ===\nif (normalized.match(/urgente|remedio|remédio|cirurgia|preciso|dinheiro|conta|pagar/)) {\n  urgencia = true;\n}\n\n// === DETECTAR NECESSIDADE DE DADOS ===\nlet precisaCPF = false;\nif (tipo === 'acompanhamento' && !normalized.match(/\\d{11}|\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}/)) {\n  precisaCPF = true;\n}\n\n// Retornar dados estruturados\nreturn {\n  json: {\n    // Dados originais\n    messageOriginal: messageBody,\n    chatId: chatId,\n    from: from,\n    messageId: messageId,\n    \n    // Dados processados\n    messageNormalized: normalized,\n    tipo: tipo,\n    categoria: categoria,\n    urgencia: urgencia,\n    precisaCPF: precisaCPF,\n    \n    // Timestamp\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "id": "normalize-node",
+      "name": "1. Normalizar Mensagem"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === NODE 2: MONTAR PROMPT INTELIGENTE ===\n\nconst data = $input.first().json;\n\n// System Prompt BASE\nconst systemPrompt = `Você é assistente virtual do escritório de advocacia Dr. Dênis Bernardo, especializado em direito previdenciário e de família.\n\n🎯 MISSÃO:\nFazer triagem inicial de clientes, identificar necessidades e coletar dados básicos.\n\n📜 REGRAS DE COMUNICAÇÃO:\n\n1. TOM: Informal mas respeitoso, como conversar com vizinho de confiança\n2. LINGUAGEM: Português simples, sem juridiquês. Máximo 2-3 frases\n3. ERROS DO CLIENTE: Cliente escreveu errado? Entenda contexto e responda normal\n   - \"qanto csta\" = \"quanto custa\"\n   - \"mim desculpa\" = \"me desculpa\" \n   - \"agente\" = \"a gente\"\n4. NUNCA corrija o português do cliente\n\n💬 EXEMPLOS:\n❌ ERRADO: \"Desejo esclarecer que a legislação...\"\n✅ CERTO: \"Pelo que você contou, o INSS tem que aprovar sim.\"\n\n❌ ERRADO: \"Não possuo informações...\"\n✅ CERTO: \"Deixa eu ver aqui! Qual seu CPF?\"\n\n🚫 NUNCA:\n- Inventar status de processo\n- Dar data de perícia sem confirmação\n- Prometer resultado\n- Dar valor de honorários\n\nSe não souber: \"Vou anotar e o Dr. Denis te responde hoje.\"\n\nSEMPRE termine: \"Precisa de mais alguma coisa?\" ou \"Tô aqui se precisar!\"`;\n\n// === CONTEXTO ADICIONAL BASEADO NA DETECÇÃO ===\nlet contextoAdicional = '';\n\n// Se for urgência\nif (data.urgencia) {\n  contextoAdicional += '\\n\\n⚠️ URGÊNCIA DETECTADA! Cliente mencionou necessidade urgente (remédio/cirurgia). Priorize empatia e rapidez.\\nResponda: \"Entendo que é urgente. Vou priorizar seu atendimento.\"';\n}\n\n// Se for acompanhamento e precisa CPF\nif (data.tipo === 'acompanhamento' && data.precisaCPF) {\n  contextoAdicional += '\\n\\n📋 Cliente quer saber status mas não informou CPF. Peça o CPF de forma natural:\\n\"Pra eu consultar certinho, qual seu CPF?\"';\n}\n\n// Contexto por categoria\nif (data.categoria === 'auxilio-doenca') {\n  contextoAdicional += '\\n\\n💡 CONTEXTO: Auxílio-doença é para incapacidade temporária. Precisa 12 meses de contribuição INSS. Ofereça agendar consulta.';\n}\n\nif (data.categoria === 'divorcio') {\n  contextoAdicional += '\\n\\n💡 CONTEXTO: Em divórcio consensual, bens são divididos meio a meio (regra geral). Pergunte se têm filhos e se já conversaram sobre divisão.';\n}\n\nif (data.categoria === 'divisao-bens') {\n  contextoAdicional += '\\n\\n💡 CONTEXTO: Sair de casa NÃO é abandono. Não perde direitos aos bens. Mas recomende formalizar separação logo.';\n}\n\n// === MONTAR USER PROMPT ===\nconst userPrompt = `${contextoAdicional}\n\nTIPO DA SOLICITAÇÃO: ${data.tipo}\nCATEGORIA: ${data.categoria || 'não identificada'}\n\nMENSAGEM DO CLIENTE:\n\"${data.messageOriginal}\"\n\nResponda de forma clara, curta (2-3 frases) e empática.`;\n\nreturn {\n  json: {\n    systemPrompt: systemPrompt,\n    userPrompt: userPrompt,\n    // Passar dados originais pra frente\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.messageId,\n    tipo: data.tipo,\n    urgencia: data.urgencia\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        300
+      ],
+      "id": "build-prompt-node",
+      "name": "2. Montar Prompt Inteligente"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "={{ $json.systemPrompt }}"
+            },
+            {
+              "message": "={{ $json.userPrompt }}",
+              "messageType": "user"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        840,
+        300
+      ],
+      "id": "d531b0cb-6d18-4e69-9109-a5180c3a4af6",
+      "name": "3. Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "qwen/qwen3.6-27b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        840,
+        480
+      ],
+      "id": "bd8ba790-3e71-4d7a-8bb1-eb7f0f3a9c62",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "4H66gdwqyInkOE5m",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === NODE 3: LIMPAR E ANALISAR RESPOSTA ===\n\n// Pegar resposta do LLM\nlet text = $input.first().json.text;\n\n// Remover tags <think>...</think>\ntext = text.replace(/<think>[\\s\\S]*?<\\/think>/g, '');\n\n// Limpar espaços extras (mantém quebras de linha)\ntext = text.trim();\n\n// === DETECTAR SE RESPOSTA PEDIU AÇÃO ===\nlet acaoDetectada = null;\n\nif (text.match(/qual seu cpf|me passa o cpf|preciso do cpf/i)) {\n  acaoDetectada = 'coletar_cpf';\n}\n\nif (text.match(/quer agendar|posso agendar|marcar consulta/i)) {\n  acaoDetectada = 'agendar_consulta';\n}\n\nif (text.match(/vou anotar|dr\\.? denis te responde|falar com advogado/i)) {\n  acaoDetectada = 'escalar_humano';\n}\n\n// Pegar dados do node anterior\nconst prevData = $item(\"0\").$node[\"2. Montar Prompt Inteligente\"].json;\n\nreturn {\n  json: {\n    chatId: prevData.chatId,\n    text: text,\n    acaoDetectada: acaoDetectada,\n    tipo: prevData.tipo,\n    urgencia: prevData.urgencia,\n    messageId: prevData.messageId\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        300
+      ],
+      "id": "ac929849-999c-41b8-8915-56c684ee0267",
+      "name": "4. Limpar Resposta"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://openwa-api:2785/api/sessions/75a54c72-fade-48af-9059-cf56362df076/messages/send-text",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1240,
+        300
+      ],
+      "id": "eeba3060-10da-4e6f-b500-8ef109d90a90",
+      "name": "5. Enviar WhatsApp",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YXggRCXzzkjcD2MN",
+          "name": "Header Auth account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "1. Normalizar Mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1. Normalizar Mensagem": {
+      "main": [
+        [
+          {
+            "node": "2. Montar Prompt Inteligente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Montar Prompt Inteligente": {
+      "main": [
+        [
+          {
+            "node": "3. Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "3. Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "4. Limpar Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Limpar Resposta": {
+      "main": [
+        [
+          {
+            "node": "5. Enviar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "UPDATED",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "02d9666f8711649c31d2d72134e61c25e121bba27bfe666252f7f75146ecc9d0"
+  },
+  "nodeGroups": [],
+  "id": "IEoQv0PI4N3DS8GB",
+  "tags": []
+}

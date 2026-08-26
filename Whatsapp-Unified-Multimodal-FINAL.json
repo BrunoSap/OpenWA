@@ -1,0 +1,743 @@
+{
+  "name": "WhatsApp Unified Bot - Multimodal (OpenWA + Groq) - FINAL WORKING",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-message",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-700, 300],
+      "id": "webhook-openwa",
+      "name": "Webhook OpenWA",
+      "webhookId": "71e84c0d-8924-446e-94c8-a8aeb268c779"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "text",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "text-check",
+                    "leftValue": "={{ $json.body.data.type }}",
+                    "rightValue": "text",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "voice",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "voice-check",
+                    "leftValue": "={{ $json.body.data.type }}",
+                    "rightValue": "voice",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "image",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "image-check",
+                    "leftValue": "={{ $json.body.data.type }}",
+                    "rightValue": "image",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "document",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "doc-check",
+                    "leftValue": "={{ $json.body.data.type }}",
+                    "rightValue": "document",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [-480, 300],
+      "id": "input-type-switch",
+      "name": "Detectar Tipo"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === TEXTO ===\nconst body = $json.body;\nconst data = body.data || {};\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    text: data.body || '',\n    inputType: 'text',\n    timestamp: data.timestamp\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-240, 80],
+      "id": "process-text",
+      "name": "Processar Texto"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://openwa-api:2785/api/sessions/75a54c72-fade-48af-9059-cf56362df076/messages/{{ $('Webhook OpenWA').item.json.body.data.id }}/media",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [-240, 240],
+      "id": "download-voice",
+      "name": "Baixar Áudio",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YXggRCXzzkjcD2MN",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "file",
+              "inputDataFieldName": "=data",
+              "parameterType": "formBinaryData"
+            },
+            {
+              "name": "model",
+              "value": "whisper-large-v3-turbo"
+            },
+            {
+              "name": "response_format",
+              "value": "json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [0, 240],
+      "id": "transcribe-groq-api",
+      "name": "Transcrever Áudio (Groq API)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "groq-api-key",
+          "name": "Groq API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === ÁUDIO TRANSCRITO ===\nconst transcription = $json.text || '';\nconst webhookData = $('Webhook OpenWA').item.json.body;\nconst data = webhookData.data || {};\n\nif (!transcription || transcription.trim() === '') {\n  console.log('[AUDIO] Transcrição vazia');\n  return {\n    json: {\n      skip: true,\n      reason: 'Transcrição vazia'\n    }\n  };\n}\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    text: `[🎤 ÁUDIO]\\n${transcription}`,\n    inputType: 'voice',\n    timestamp: data.timestamp\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 240],
+      "id": "format-voice",
+      "name": "Formatar Áudio"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://openwa-api:2785/api/sessions/75a54c72-fade-48af-9059-cf56362df076/messages/{{ $('Webhook OpenWA').item.json.body.data.id }}/media",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [-240, 400],
+      "id": "download-image",
+      "name": "Baixar Imagem",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YXggRCXzzkjcD2MN",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "text": "=Você é um especialista em análise de imagens. Descreva a imagem em detalhes, além de extrair o máximo de texto e retorná-lo ao contexto.\n\nContexto: {{ $('Webhook OpenWA').item.json.body.data.caption || 'Descreva a imagem' }}",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {
+          "detail": "auto"
+        },
+        "resource": "image",
+        "inputType": "base64",
+        "operation": "analyze"
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [0, 400],
+      "id": "analyze-image",
+      "name": "Analisar Imagem (Vision)",
+      "credentials": {
+        "openAiApi": {
+          "id": "rLSkasccOwzWBqag",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === IMAGEM ANALISADA ===\nconst body = $('Webhook OpenWA').item.json.body;\nconst data = body.data || {};\nconst imageAnalysis = $json.content || $json.text || '';\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    text: `[🖼️ IMAGEM]\\nDescrição: ${imageAnalysis}`,\n    inputType: 'image'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 400],
+      "id": "format-image",
+      "name": "Formatar Imagem"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://openwa-api:2785/api/sessions/75a54c72-fade-48af-9059-cf56362df076/messages/{{ $('Webhook OpenWA').item.json.body.data.id }}/media",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [-240, 560],
+      "id": "download-document",
+      "name": "Baixar Documento",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YXggRCXzzkjcD2MN",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "pdf-check",
+              "leftValue": "={{ $('Webhook OpenWA').item.json.body.data.mimetype }}",
+              "rightValue": "application/pdf",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [0, 560],
+      "id": "check-pdf",
+      "name": "Apenas PDF?"
+    },
+    {
+      "parameters": {
+        "options": {},
+        "operation": "pdf"
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [240, 520],
+      "id": "extract-pdf",
+      "name": "Extrair PDF"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === PDF EXTRAÍDO ===\nconst body = $('Webhook OpenWA').item.json.body;\nconst data = body.data || {};\nconst pdfText = $json.text || '';\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    text: `[📄 DOCUMENTO PDF]\\nConteúdo:\\n${pdfText.substring(0, 3000)}...`,\n    inputType: 'document'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 520],
+      "id": "format-pdf",
+      "name": "Formatar PDF"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Você é assistente virtual do escritório Dr. Dênis Bernardo, especializado em direito previdenciário e de família.\n\n🎯 MISSÃO:\nFazer triagem inicial, identificar necessidades e coletar dados básicos.\n\n📬 REGRAS:\n1. TOM: Informal mas respeitoso, como vizinho de confiança\n2. LINGUAGEM: Português simples, sem juridiquês. Máximo 2-3 frases\n3. ERROS DO CLIENTE: Entenda contexto, não corrija português\n4. NUNCA invente status de processo ou prometa resultado\n\nSe não souber: \"Vou anotar e o Dr. Denis te responde.\"\n\nSEMPRE termine: \"Precisa de mais alguma coisa?\""
+            },
+            {
+              "message": "={{ $json.text }}",
+              "messageType": "user"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [720, 300],
+      "id": "llm-chain",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "qwen/qwen3.6-27b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [720, 480],
+      "id": "groq-model",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "4H66gdwqyInkOE5m",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionKey": "=memory_{{ $('Webhook OpenWA').item.json.body.data.chatId }}",
+        "sessionIdType": "customKey",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [860, 480],
+      "id": "memory",
+      "name": "Memória Conversa"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === LIMPAR RESPOSTA ===\nconst llmOutput = $input.first().json;\nlet text = llmOutput.text || llmOutput.output || '';\n\nconsole.log('[CLEAN] ===== INICIO =====');\nconsole.log('[CLEAN] Raw LLM output length:', text.length);\nconsole.log('[CLEAN] First 200 chars:', text.substring(0, 200));\n\nconst originalLength = text.length;\n\n// REGEX AGRESSIVO: Remover TUDO antes do último </think>\nif (text.includes('<think>')) {\n  console.log('[CLEAN] Found <think> tag, removing...');\n  \n  // Estratégia 1: Remover tudo até o ÚLTIMO </think>\n  const lastCloseTag = text.lastIndexOf('</think>');\n  if (lastCloseTag !== -1) {\n    console.log('[CLEAN] Strategy 1: Removing everything before last </think>');\n    text = text.substring(lastCloseTag + 8); // 8 = length of '</think>'\n  }\n  \n  // Estratégia 2: Se ainda tem <think>, regex global\n  text = text.replace(/<think>[\\s\\S]*?<\\/think>/g, '');\n  \n  // Estratégia 3: Trim agressivo\n  text = text.trim().replace(/^\\n+/, '');\n  \n  const cleanedLength = text.length;\n  console.log('[CLEAN] Removed', originalLength - cleanedLength, 'chars');\n}\n\n// Limitar tamanho (WhatsApp limit)\nif (text.length > 4000) {\n  console.log('[CLEAN] Truncating to 4000 chars');\n  text = text.substring(0, 3997) + '...';\n}\n\n// Fallback se vazio\nif (!text || text.trim().length === 0) {\n  console.error('[CLEAN] ERROR: Text is empty after cleaning!');\n  text = 'Desculpa, tive um problema ao processar. Pode repetir?';\n}\n\nconsole.log('[CLEAN] Final text length:', text.length);\nconsole.log('[CLEAN] Final text:', text);\nconsole.log('[CLEAN] ===== FIM =====');\n\n// Pegar dados do webhook\nconst webhookData = $('Webhook OpenWA').item.json.body;\nconst chatId = webhookData.data?.chatId;\nconst messageId = webhookData.data?.id;\n\nreturn {\n  json: {\n    chatId: chatId,\n    text: text,\n    messageId: messageId\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 300],
+      "id": "clean-response",
+      "name": "Limpar Resposta"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://openwa-api:2785/api/sessions/75a54c72-fade-48af-9059-cf56362df076/messages/send-text",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [1200, 300],
+      "id": "send-whatsapp",
+      "name": "Enviar WhatsApp",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YXggRCXzzkjcD2MN",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://openwa-api:2785/api/sessions/75a54c72-fade-48af-9059-cf56362df076/messages/send-text",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{ $('Webhook OpenWA').item.json.body.data.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "Desculpa, só consigo processar arquivos PDF. Pode enviar novamente?"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [240, 640],
+      "id": "reject-non-pdf",
+      "name": "Rejeitar Não-PDF",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YXggRCXzzkjcD2MN",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://openwa-api:2785/api/sessions/75a54c72-fade-48af-9059-cf56362df076/messages/send-text",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{ $('Webhook OpenWA').item.json.body.data.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "Desculpa, esse tipo de mensagem não é suportado. Envie texto, áudio, imagem ou PDF."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [-240, 720],
+      "id": "reject-unsupported",
+      "name": "Tipo Não Suportado",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YXggRCXzzkjcD2MN",
+          "name": "Header Auth account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook OpenWA": {
+      "main": [
+        [
+          {
+            "node": "Detectar Tipo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detectar Tipo": {
+      "main": [
+        [
+          {
+            "node": "Processar Texto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Baixar Áudio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Baixar Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Baixar Documento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tipo Não Suportado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Texto": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baixar Áudio": {
+      "main": [
+        [
+          {
+            "node": "Transcrever Áudio (Groq API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrever Áudio (Groq API)": {
+      "main": [
+        [
+          {
+            "node": "Formatar Áudio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Áudio": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baixar Imagem": {
+      "main": [
+        [
+          {
+            "node": "Analisar Imagem (Vision)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analisar Imagem (Vision)": {
+      "main": [
+        [
+          {
+            "node": "Formatar Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Imagem": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baixar Documento": {
+      "main": [
+        [
+          {
+            "node": "Apenas PDF?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apenas PDF?": {
+      "main": [
+        [
+          {
+            "node": "Extrair PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rejeitar Não-PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair PDF": {
+      "main": [
+        [
+          {
+            "node": "Formatar PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar PDF": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Limpar Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpar Resposta": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memória Conversa": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "final-working-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "02d9666f8711649c31d2d72134e61c25e121bba27bfe666252f7f75146ecc9d0"
+  },
+  "id": "WhatsApp-Multimodal-Final",
+  "tags": []
+}
