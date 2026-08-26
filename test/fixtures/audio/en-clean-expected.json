@@ -1,7 +1,7 @@
 {
-  "file": "en-clean-sample.ogg",
+  "audioFile": "en-clean-sample.mp3",
   "language": "en",
-  "durationSec": 10,
-  "expectedTranscript": "What are your business hours and customer service availability?",
-  "minAccuracy": 0.9
+  "expectedTranscript": "What are your business hours",
+  "accuracyThreshold": 0.90,
+  "notes": "English clean audio recorded via microphone"
 }

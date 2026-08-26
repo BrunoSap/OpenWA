@@ -56,14 +56,14 @@ describe('Audio STT E2E (full cycle)', () => {
 
     const fixtureMeta = JSON.parse(fs.readFileSync(fixtureMetaPath, 'utf-8'));
     expectedTranscript = fixtureMeta.expectedTranscript;
-    minAccuracy = fixtureMeta.minAccuracy;
+    minAccuracy = fixtureMeta.accuracyThreshold;
 
     // Load audio buffer
-    const audioPath = path.join(__dirname, 'fixtures/audio', fixtureMeta.file);
+    const audioPath = path.join(__dirname, 'fixtures/audio', fixtureMeta.audioFile);
     if (!fs.existsSync(audioPath)) {
       shouldSkip = true;
-      skipReason = 'Audio fixture .ogg file not found';
-      console.warn(`⚠️  Audio fixture file not found: ${fixtureMeta.file} - Audio STT tests will be skipped`);
+      skipReason = 'Audio fixture file not found';
+      console.warn(`⚠️  Audio fixture file not found: ${fixtureMeta.audioFile} - Audio STT tests will be skipped`);
       return;
     }
 
@@ -79,7 +79,7 @@ describe('Audio STT E2E (full cycle)', () => {
 
     // Initialize LLM for STT-04 (transcription → LLM response)
     llm = new ChatOpenAI({
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-20b',
       temperature: 0,
       apiKey: process.env.GROQ_API_KEY,
       configuration: {
@@ -114,11 +114,13 @@ describe('Audio STT E2E (full cycle)', () => {
       expect(audioBuffer).toBeDefined();
       expect(audioBuffer.length).toBeGreaterThan(0);
 
-      // Check for OGG container magic bytes (OggS)
-      const oggMagic = audioBuffer.slice(0, 4).toString('ascii');
-      expect(oggMagic).toBe('OggS');
+      // Check for audio format magic bytes (OggS or ID3 for MP3 or MP3 sync)
+      const magic4 = audioBuffer.slice(0, 4).toString('ascii');
+      const magic3 = audioBuffer.slice(0, 3).toString('ascii');
+      const isValidAudio = magic4 === 'OggS' || magic3 === 'ID3' || (audioBuffer[0] === 0xFF && (audioBuffer[1] & 0xE0) === 0xE0);
+      expect(isValidAudio).toBe(true);
 
-      console.log(`✅ Audio buffer loaded: ${audioBuffer.length} bytes`);
+      console.log(`✅ Audio buffer loaded: ${audioBuffer.length} bytes (format: ${magic3})`);
     });
 
     it('STT-03/09: should transcribe audio via Groq Whisper with latency < 5000ms', async () => {

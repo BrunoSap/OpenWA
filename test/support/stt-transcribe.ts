@@ -1,9 +1,10 @@
 import FormData from 'form-data';
+import https from 'https';
 
 /**
  * Transcribe audio using Groq Whisper API.
  *
- * @param audio - Audio buffer (.ogg format from WhatsApp webhook)
+ * @param audio - Audio buffer (MP3 or OGG format)
  * @param opts - Transcription options (language, model)
  * @returns Transcribed text and latency in milliseconds
  * @throws Error if GROQ_API_KEY is not set or API request fails
@@ -19,10 +20,17 @@ export async function transcribeOgg(
 
   const model = opts.model || 'whisper-large-v3';
 
+  // Detect format from magic bytes
+  const isMp3 = audio[0] === 0xFF && (audio[1] & 0xE0) === 0xE0; // MP3 magic bytes
+  const isOgg = audio.toString('ascii', 0, 4) === 'OggS'; // OGG magic bytes
+
+  const filename = isMp3 ? 'audio.mp3' : 'audio.ogg';
+  const contentType = isMp3 ? 'audio/mpeg' : 'audio/ogg';
+
   const form = new FormData();
   form.append('file', audio, {
-    filename: 'audio.ogg',
-    contentType: 'audio/ogg',
+    filename,
+    contentType,
   });
   form.append('model', model);
   form.append('response_format', 'json');
@@ -32,36 +40,51 @@ export async function transcribeOgg(
 
   const startTime = Date.now();
 
-  try {
-    const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        ...form.getHeaders(),
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: 'api.groq.com',
+        path: '/openai/v1/audio/transcriptions',
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          ...form.getHeaders(),
+        },
       },
-      body: form as any,
+      (res) => {
+        const latencyMs = Date.now() - startTime;
+        let data = '';
+
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          if (res.statusCode !== 200) {
+            reject(new Error(`Groq API error (${res.statusCode}): ${data}`));
+            return;
+          }
+
+          try {
+            const result = JSON.parse(data);
+            resolve({
+              text: result.text || '',
+              latencyMs,
+            });
+          } catch (error) {
+            reject(new Error(`Failed to parse response: ${error}`));
+          }
+        });
+      }
+    );
+
+    req.on('error', (error) => {
+      const latencyMs = Date.now() - startTime;
+      reject(new Error(`Transcription failed: ${error.message}`));
     });
 
-    const latencyMs = Date.now() - startTime;
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Groq API error (${response.status}): ${errorText}`);
-    }
-
-    const result = await response.json();
-
-    return {
-      text: result.text || '',
-      latencyMs,
-    };
-  } catch (error) {
-    const latencyMs = Date.now() - startTime;
-    if (error instanceof Error) {
-      throw new Error(`Transcription failed: ${error.message}`);
-    }
-    throw error;
-  }
+    form.pipe(req);
+  });
 }
 
 /**

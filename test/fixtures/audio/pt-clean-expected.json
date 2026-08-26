@@ -1,7 +1,7 @@
 {
-  "file": "pt-clean-sample.ogg",
+  "audioFile": "pt-clean-sample.mp3",
   "language": "pt",
-  "durationSec": 10,
-  "expectedTranscript": "Qual o horário de atendimento da empresa?",
-  "minAccuracy": 0.9
+  "expectedTranscript": "Qual o horário do atendimento da empresa",
+  "accuracyThreshold": 0.90,
+  "notes": "Portuguese clean audio recorded via microphone"
 }

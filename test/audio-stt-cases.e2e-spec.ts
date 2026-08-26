@@ -69,10 +69,10 @@ describe('Audio STT E2E (expanded cases)', () => {
 
       const fixtureMeta = JSON.parse(fs.readFileSync(fixtureMetaPath, 'utf-8'));
       expectedTranscript = fixtureMeta.expectedTranscript;
-      minAccuracy = fixtureMeta.minAccuracy;
+      minAccuracy = fixtureMeta.accuracyThreshold;
 
       // Load audio buffer
-      const audioPath = path.join(__dirname, 'fixtures/audio', fixtureMeta.file);
+      const audioPath = path.join(__dirname, 'fixtures/audio', fixtureMeta.audioFile);
       if (!fs.existsSync(audioPath)) {
         shouldSkip = true;
         skipReason = 'EN fixture .ogg file not found';
@@ -138,10 +138,10 @@ describe('Audio STT E2E (expanded cases)', () => {
 
       const fixtureMeta = JSON.parse(fs.readFileSync(fixtureMetaPath, 'utf-8'));
       expectedTranscript = fixtureMeta.expectedTranscript;
-      minAccuracy = fixtureMeta.minAccuracy;
+      minAccuracy = fixtureMeta.accuracyThreshold;
 
       // Load audio buffer
-      const audioPath = path.join(__dirname, 'fixtures/audio', fixtureMeta.file);
+      const audioPath = path.join(__dirname, 'fixtures/audio', fixtureMeta.audioFile);
       if (!fs.existsSync(audioPath)) {
         shouldSkip = true;
         skipReason = 'PT-noisy fixture .ogg file not found';
