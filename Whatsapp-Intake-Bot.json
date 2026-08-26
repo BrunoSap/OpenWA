@@ -1,0 +1,117 @@
+{
+  "name": "WhatsApp Intake Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "intake",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 300],
+      "id": "webhook-intake",
+      "name": "Webhook Intake",
+      "webhookId": "3f1c9a2e-6b47-4d1a-9e2f-1a2b3c4d5e6f"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === EXTRAIR chatId, text e sessionId DO EVENTO OPENWA ===\n// O OpenWA (ingress) entrega o evento de mensagem no corpo do webhook.\n// Suporta tanto o formato { body: { data: {...} } } quanto payload plano.\n\nconst body = $json.body || $json;\nconst data = body.data || body;\n\n// chatId (identificador da conversa WhatsApp)\nconst chatId = data.chatId || data.from || body.chatId || '';\n\n// texto da mensagem\nconst text = data.body || data.text || body.text || '';\n\n// sessionId: prioriza o payload; cai para variavel de ambiente configuravel\nconst sessionId = data.sessionId || body.sessionId || $env.OPENWA_SESSION_ID || 'default';\n\nif (!chatId || !text) {\n  // Sem chatId/text nao ha o que processar; encaminha um marcador de skip.\n  return {\n    json: {\n      route: 'skip',\n      reason: 'Payload sem chatId ou text',\n      chatId,\n      sessionId,\n    },\n  };\n}\n\nreturn {\n  json: {\n    chatId,\n    text,\n    sessionId,\n    timestamp: new Date().toISOString(),\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 300],
+      "id": "extract-fields",
+      "name": "1. Extrair chatId + text"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.OPENWA_BASE_URL }}/api/sessions/{{ $json.sessionId }}/intake/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.OPENWA_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chatId: $json.chatId, text: $json.text }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [440, 300],
+      "id": "ingest-intake",
+      "name": "2. Ingest Intake (POST /intake/messages)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === PREPARAR REPLY PARA REENVIO ===\n// A rota /intake/messages devolve o lead persistido. A resposta conversacional\n// para o cliente pode vir em `reply` (fluxo do Plan 02) ou, na ausencia dela,\n// usa-se um ack padrao. Recupera chatId/sessionId do node anterior.\n\nconst apiResponse = $json || {};\nconst prev = $('1. Extrair chatId + text').first().json;\n\nconst chatId = prev.chatId;\nconst sessionId = prev.sessionId;\n\n// A `reply` conversacional, quando o backend a fornecer.\nlet reply = apiResponse.reply;\n\n// Fallback: enquanto o fluxo conversacional (Plan 02) nao popular `reply`,\n// confirma o recebimento ao cliente.\nif (!reply || String(reply).trim() === '') {\n  reply = 'Recebemos sua mensagem e ja iniciamos seu atendimento. Em breve retornamos.';\n}\n\nreturn {\n  json: {\n    chatId,\n    sessionId,\n    text: reply,\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 300],
+      "id": "prepare-reply",
+      "name": "3. Preparar Reply"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.OPENWA_BASE_URL }}/api/sessions/{{ $json.sessionId }}/messages/send-text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.OPENWA_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chatId: $json.chatId, text: $json.text }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [880, 300],
+      "id": "send-reply",
+      "name": "4. Enviar Reply ao Cliente"
+    }
+  ],
+  "connections": {
+    "Webhook Intake": {
+      "main": [[{ "node": "1. Extrair chatId + text", "type": "main", "index": 0 }]]
+    },
+    "1. Extrair chatId + text": {
+      "main": [[{ "node": "2. Ingest Intake (POST /intake/messages)", "type": "main", "index": 0 }]]
+    },
+    "2. Ingest Intake (POST /intake/messages)": {
+      "main": [[{ "node": "3. Preparar Reply", "type": "main", "index": 0 }]]
+    },
+    "3. Preparar Reply": {
+      "main": [[{ "node": "4. Enviar Reply ao Cliente", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "INTAKE_BOT_V1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
