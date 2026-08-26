@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 status: in_progress
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-08-26T22:09:13.594Z"
+stopped_at: Completed Phase 3 (Validação E2E Áudio STT) - human validation pending
+last_updated: "2026-08-26T22:45:00.000Z"
 state_head: 467fc4c3d47ccef9c9cd91cf9d63b3b2d99f6c82
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 3
   total_plans: 13
   completed_plans: 13
-  percent: 0
+  percent: 75
 ---
 
 # State - OpenWA Platform
@@ -149,12 +149,14 @@ Nenhum trabalho ativo no momento.
    - CI/CD pipeline com GitHub Actions
    - Score: 9/9 truths verified
 
-3. **Phase 3: Validação E2E Áudio STT** 🎯 NEXT
-   - Criar teste E2E para workflow existente
-   - Validar transcrição (>90% acurácia)
-   - Effort: ~2-3 dias
+3. **Phase 3: Validação E2E Áudio STT** ✅ COMPLETE (2026-08-26) — Requer validação humana
+   - Helper de transcrição Groq Whisper implementado
+   - 16 testes E2E (PT/EN limpo, PT ruidoso, fallback)
+   - Workflow shape validado + CI pipeline
+   - Score: 6/9 truths (3 pending áudio real)
+   - **Action needed:** Substituir fixtures placeholders por áudio .ogg real
 
-4. **Phase 4: Implementação E2E Vision**
+4. **Phase 4: Implementação E2E Vision** 🎯 NEXT
    - Criar workflow n8n para GPT-4 Vision
    - Teste E2E: imagem → análise → resposta
    - Effort: ~3-4 dias
@@ -183,10 +185,13 @@ Nenhum issue crítico conhecido.
    - Suite de 6 testes E2E cobrindo pgvector + LLM-as-judge
    - CI/CD pipeline com GitHub Actions
    - Score: 9/9 truths verified
-3. **Cobertura de testes E2E áudio/visão ausente** 🟡 **IMPORTANTE**
-   - Impacto: Claims multimodais STT/Vision não validados E2E
-   - Mitigação: Phases 3-4 (próximas)
-4. **Cobertura de testes unitários baixa** (~20-30%)
+3. **Validação E2E Áudio STT completa** ✅ RESOLVED (Phase 3, 2026-08-26)
+   - Helper STT + 16 testes E2E + CI pipeline
+   - Arquitetura completa, requer validação com áudio real
+4. **Cobertura de testes E2E visão ausente** 🟡 **IMPORTANTE**
+   - Impacto: Claim multimodal Vision não validado E2E
+   - Mitigação: Phase 4 (próxima)
+5. **Cobertura de testes unitários baixa** (~20-30%)
    - Impacto: Risco de regressões
    - Mitigação: Incremental
 5. **Horizontal scaling não implementado**
@@ -342,8 +347,13 @@ MASTER_API_KEY=xxx
 3. ✅ **Roadmap E2E criado** (4 fases, 38 requirements)
 4. ✅ **Phase 1 completa** (Bot de Intake E2E)
 5. ✅ **Phase 2 completa** (Validação E2E Texto+LLM+RAG)
-6. 🎯 **NEXT: Phase 3** (Validação E2E Áudio STT)
-7. 📋 **Phase 4** (Implementação E2E Vision)
+6. ✅ **Phase 3 completa** (Validação E2E Áudio STT) — validação humana pending
+7. 🎯 **NEXT: Phase 4** (Implementação E2E Vision)
+
+**Phase 3 action items:**
+- Substituir `test/fixtures/audio/*.ogg` por áudio real (~10s cada)
+- Configurar GROQ_API_KEY e executar `npm run test:e2e:stt`
+- Validar métricas: acurácia >= 90% (clean), >= 60% (noisy), latência < 5s
 
 ---
 
@@ -367,6 +377,12 @@ MASTER_API_KEY=xxx
   - LLM-as-judge faithfulness validation
   - Performance metrics (latency p95 < 3s, precision@5 >= 0.8)
   - CI/CD pipeline com GitHub Actions validado
+- ✅ **Phase 3 completa**: Validação E2E Áudio STT (3 plans, 10 commits, ~15 min)
+  - Helper de transcrição Groq Whisper (4 funções reutilizáveis)
+  - 16 testes E2E (PT/EN limpo, PT ruidoso, fallback determinístico)
+  - Workflow n8n shape validado + CI pipeline GitHub Actions
+  - Score: 6/9 truths (3 pending validação com áudio real)
+  - **Action needed**: Substituir fixtures placeholders por áudio .ogg real
 - ✅ Reanálise de objetivos com foco em fluxos E2E
 - ✅ Roadmap E2E criado (4 fases, 38 requirements)
 

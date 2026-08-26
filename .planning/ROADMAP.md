@@ -111,9 +111,20 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 - ✅ Acurácia transcrição medida (>90% em áudio limpo)
 - ✅ Latência dentro do target (<5s para 10s de áudio)
 
-**Dependencies:** Fase 2 (compartilha CI/CD pipeline)
+**Status:** ✅ **COMPLETE** (2026-08-26) — Arquitetura implementada, requer validação humana com áudio real
 
-**Effort:** ~2-3 dias (setup de teste + casos + métricas)
+**Plans:** 3/3 plans executed (3 waves)
+
+- [x] 03-01-PLAN.md — Tracer E2E: áudio PT limpo → Groq Whisper → acurácia/latência (Wave 1)
+- [x] 03-02-PLAN.md — Expansão: EN limpo + PT ruidoso + fallback (Wave 2)
+- [x] 03-03-PLAN.md — Workflow shape + CI GitHub Actions (Wave 3)
+
+**Verification:** 6/9 truths verified, 3 behavior-unverified (03-VERIFICATION.md)
+
+**Human validation needed:**
+1. Substituir fixtures placeholders por áudio .ogg real (~10s cada)
+2. Configurar GROQ_API_KEY e executar `npm run test:e2e:stt`
+3. Validar métricas reais: acurácia >= 90% (clean), >= 60% (noisy), latência < 5s
 
 **Plans:** 3/3 plans executed (3 waves)
 
