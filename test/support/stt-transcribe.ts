@@ -139,3 +139,78 @@ function levenshteinDistance(a: string[], b: string[]): number {
 
   return matrix[b.length][a.length];
 }
+
+/**
+ * Transcribe audio with automatic fallback handling.
+ * If transcription fails (timeout or API error), returns a fallback result
+ * instead of throwing an exception.
+ *
+ * @param audio - Audio buffer (.ogg format)
+ * @param opts - Transcription options (language, model, timeoutMs)
+ * @returns Transcription result with ok flag and optional fallback reason
+ */
+export async function transcribeWithFallback(
+  audio: Buffer,
+  opts: { language?: string; model?: string; timeoutMs?: number } = {}
+): Promise<{
+  text: string;
+  latencyMs: number;
+  ok: boolean;
+  fallbackReason?: 'timeout' | 'api_error';
+}> {
+  const timeoutMs = opts.timeoutMs || 5000;
+  const startTime = Date.now();
+
+  try {
+    // Create timeout promise
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs);
+    });
+
+    // Race between transcription and timeout
+    const result = await Promise.race([
+      transcribeOgg(audio, { language: opts.language, model: opts.model }),
+      timeoutPromise,
+    ]);
+
+    return {
+      text: result.text,
+      latencyMs: result.latencyMs,
+      ok: true,
+    };
+  } catch (error) {
+    const latencyMs = Date.now() - startTime;
+
+    if (error instanceof Error && error.message === 'TIMEOUT') {
+      return {
+        text: '',
+        latencyMs,
+        ok: false,
+        fallbackReason: 'timeout',
+      };
+    }
+
+    // API error or other failure
+    return {
+      text: '',
+      latencyMs,
+      ok: false,
+      fallbackReason: 'api_error',
+    };
+  }
+}
+
+/**
+ * Build a user-friendly fallback message when transcription fails.
+ * Returns a deterministic message instructing the user to resend as text.
+ *
+ * @param fallbackReason - Reason for transcription failure
+ * @returns User-facing message string
+ */
+export function buildFallbackReply(fallbackReason: 'timeout' | 'api_error'): string {
+  if (fallbackReason === 'timeout') {
+    return 'Desculpe, não consegui processar seu áudio (tempo esgotado). Por favor, reenvie sua mensagem em texto.';
+  }
+
+  return 'Desculpe, ocorreu um erro ao processar seu áudio. Por favor, reenvie sua mensagem em texto.';
+}

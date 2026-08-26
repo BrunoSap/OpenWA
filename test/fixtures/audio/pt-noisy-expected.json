@@ -1,0 +1,7 @@
+{
+  "file": "pt-noisy-sample.ogg",
+  "language": "pt",
+  "durationSec": 10,
+  "expectedTranscript": "Qual o horário de atendimento da empresa?",
+  "minAccuracy": 0.6
+}

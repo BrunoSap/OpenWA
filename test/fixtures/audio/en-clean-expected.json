@@ -1,0 +1,7 @@
+{
+  "file": "en-clean-sample.ogg",
+  "language": "en",
+  "durationSec": 10,
+  "expectedTranscript": "What are your business hours and customer service availability?",
+  "minAccuracy": 0.9
+}
