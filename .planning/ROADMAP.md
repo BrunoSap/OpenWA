@@ -115,11 +115,11 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 
 **Effort:** ~2-3 dias (setup de teste + casos + métricas)
 
-**Plans:** 2/3 plans executed (3 waves)
+**Plans:** 3/3 plans executed (3 waves)
 
 - [x] 03-01-PLAN.md — Tracer E2E: áudio PT limpo → Groq Whisper → acurácia >=90% + latência <5s → LLM (Wave 1)
 - [x] 03-02-PLAN.md — Expansão: EN limpo + PT ruidoso + fallback quando transcrição falha (Wave 2)
-- [ ] 03-03-PLAN.md — Shape do workflow n8n de áudio + CI/CD GitHub Actions para suites STT (Wave 3)
+- [x] 03-03-PLAN.md — Shape do workflow n8n de áudio + CI/CD GitHub Actions para suites STT (Wave 3)
 
 ---
 

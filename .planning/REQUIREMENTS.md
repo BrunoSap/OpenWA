@@ -31,10 +31,10 @@ Requirements para completar e validar os fluxos E2E principais. Cada requirement
 
 ### Validação Áudio STT (E2E-4)
 
-- [ ] **STT-01**: Teste E2E simula áudio WhatsApp (formato .ogg)
-- [ ] **STT-02**: Teste valida download do áudio do webhook
-- [ ] **STT-03**: Teste valida transcrição via Groq Whisper
-- [ ] **STT-04**: Teste valida que LLM processa transcrição e responde
+- [x] **STT-01**: Teste E2E simula áudio WhatsApp (formato .ogg)
+- [x] **STT-02**: Teste valida download do áudio do webhook
+- [x] **STT-03**: Teste valida transcrição via Groq Whisper
+- [x] **STT-04**: Teste valida que LLM processa transcrição e responde
 - [ ] **STT-05**: Teste cobre caso: áudio limpo em português
 - [x] **STT-06**: Teste cobre caso: áudio limpo em inglês
 - [x] **STT-07**: Teste cobre caso: áudio com ruído de fundo
@@ -124,10 +124,10 @@ Mapeamento requirements → fases do roadmap. Atualizado conforme execução.
 | RAG-07 | Phase 2 | Pending |
 | RAG-08 | Phase 2 | Pending |
 | RAG-09 | Phase 2 | Pending |
-| STT-01 | Phase 3 | Pending |
-| STT-02 | Phase 3 | Pending |
-| STT-03 | Phase 3 | Pending |
-| STT-04 | Phase 3 | Pending |
+| STT-01 | Phase 3 | Complete |
+| STT-02 | Phase 3 | Complete |
+| STT-03 | Phase 3 | Complete |
+| STT-04 | Phase 3 | Complete |
 | STT-05 | Phase 3 | Pending |
 | STT-06 | Phase 3 | Complete |
 | STT-07 | Phase 3 | Complete |

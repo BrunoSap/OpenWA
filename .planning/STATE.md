@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
 status: in_progress
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-08-26T22:03:55.214Z"
-state_head: 10f37dc5e76b3d9844b1388bcff8a56f146c623b
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-08-26T22:09:13.594Z"
+state_head: 467fc4c3d47ccef9c9cd91cf9d63b3b2d99f6c82
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 13
-  completed_plans: 12
+  completed_plans: 13
   percent: 0
 ---
 
@@ -405,6 +405,7 @@ MASTER_API_KEY=xxx
 | Phase 01-bot-de-intake-e2e P04 | 4min | 2 tasks | 3 files |
 | Phase 03 P01 | 297 | 3 tasks | 6 files |
 | Phase 03-valida-o-e2e-udio-stt P02 | 129 | 3 tasks | 6 files |
+| Phase 03 P03 | 2min | 2 tasks | 2 files |
 
 ## Decisions
 
@@ -419,9 +420,12 @@ MASTER_API_KEY=xxx
 - [Phase ?]: Threshold tolerante 0.6 para PT ruidoso (vs 0.9 clean) — acurácia degradada medida explicitamente
 - [Phase ?]: Wrapper transcribeWithFallback retorna {ok: false, fallbackReason} em vez de lançar — resiliência determinística
 - [Phase ?]: buildFallbackReply retorna mensagem ao usuário em PT-BR — UX consistente com bot de Intake
+- [Phase ?]: Reused Phase 2 RAG E2E CI pattern for consistency
+- [Phase ?]: Shape test guards T-03-01 via negative regex for secret prefixes
+- [Phase ?]: All GitHub Actions pinned by SHA for supply-chain security
 
 ## Session
 
-**Last session:** 2026-08-26T22:03:55.143Z
-**Stopped at:** Completed 03-02-PLAN.md
+**Last session:** 2026-08-26T22:09:13.532Z
+**Stopped at:** Completed 03-03-PLAN.md
 **Resume file:** None
