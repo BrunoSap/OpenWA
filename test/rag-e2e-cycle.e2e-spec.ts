@@ -97,8 +97,10 @@ describe('RAG E2E (full cycle)', () => {
   });
 
   afterAll(async () => {
-    // Clean up test data
-    await cleanupTestData();
+    // Clean up test data (only if PostgreSQL)
+    if (dataSource?.options.type === 'postgres') {
+      await cleanupTestData();
+    }
     try {
       await app?.close();
     } catch {
