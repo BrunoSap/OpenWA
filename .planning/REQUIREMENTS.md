@@ -15,7 +15,7 @@ Requirements para completar e validar os fluxos E2E principais. Cada requirement
 - [x] **INTAKE-04**: Lead qualificado exportável via webhook ou API REST
 - [x] **INTAKE-05**: Workflow n8n orquestra fluxo completo e é importável
 - [x] **INTAKE-06**: Controller e service implementados para gerenciar intake sessions
-- [ ] **INTAKE-07**: Teste E2E valida ciclo: WhatsApp → coleta → banco → export
+- [x] **INTAKE-07**: Teste E2E valida ciclo: WhatsApp → coleta → banco → export
 
 ### Validação LLM+RAG (E2E-3)
 
@@ -114,7 +114,7 @@ Mapeamento requirements → fases do roadmap. Atualizado conforme execução.
 | INTAKE-04 | Phase 1 | Complete |
 | INTAKE-05 | Phase 1 | Complete |
 | INTAKE-06 | Phase 1 | Complete |
-| INTAKE-07 | Phase 1 | Pending |
+| INTAKE-07 | Phase 1 | Complete |
 | RAG-01 | Phase 2 | Pending |
 | RAG-02 | Phase 2 | Pending |
 | RAG-03 | Phase 2 | Pending |

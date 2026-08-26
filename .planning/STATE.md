@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
 status: in_progress
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-08-26T14:13:48.488Z"
-state_head: 5f68ba5df7208599c92e3a75e5cd603e3d0fefb8
+stopped_at: Completed 01-04-PLAN.md
+last_updated: "2026-08-26T14:21:05.226Z"
+state_head: 3bdd921c7dab33be5c845eb92662445536c01f5b
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -396,6 +396,7 @@ MASTER_API_KEY=xxx
 | Phase 01-bot-de-intake-e2e P01 | 25min | 3 tasks | 8 files |
 | Phase 01-bot-de-intake-e2e P03 | 3min | 2 tasks | 2 files |
 | Phase 01-bot-de-intake-e2e P02 | 20min | 3 tasks | 8 files |
+| Phase 01-bot-de-intake-e2e P04 | 4min | 2 tasks | 3 files |
 
 ## Decisions
 
@@ -403,9 +404,10 @@ MASTER_API_KEY=xxx
 - [Phase ?]: Colunas string nullable declaram type:'varchar' explicito (union string|null e inferido como Object e rejeitado pelo better-sqlite3)
 - [Phase ?]: [Phase 1]: advanceIntake pure function (state machine); urgencyLevel validado no motor contra normal/high/critical
 - [Phase ?]: [Phase 1]: export do lead reusa postWebhookPayload (SSRF guard); lead incompleto -> 409
+- [Phase ?]: [Phase 1]: INTAKE-07 fechado por E2E full-cycle (intake-e2e-cycle.e2e-spec.ts); docs ARCHITECTURE/GUIDES refletem implementacao real
 
 ## Session
 
-**Last session:** 2026-08-26T14:13:48.470Z
-**Stopped at:** Completed 01-02-PLAN.md
+**Last session:** 2026-08-26T14:20:37.949Z
+**Stopped at:** Completed 01-04-PLAN.md
 **Resume file:** None
