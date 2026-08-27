@@ -45,6 +45,7 @@ import { PluginsApiModule } from './modules/plugins/plugins.module';
 import { AgentToolsModule } from './core/agent-tools/agent-tools.module';
 import { IntegrationModule } from './modules/integration/integration.module';
 import { IntakeModule } from './modules/intake/intake.module';
+import { MemoryModule } from './modules/memory/memory.module';
 import { SearchModule } from './modules/search/search.module';
 import { SqlitePermissionsBoot } from './database/sqlite-file-permissions';
 
@@ -175,6 +176,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
             __dirname + '/modules/status-store/**/*.entity{.ts,.js}',
             __dirname + '/modules/automation/**/*.entity{.ts,.js}',
             __dirname + '/modules/intake/**/*.entity{.ts,.js}',
+            __dirname + '/modules/memory/**/*.entity{.ts,.js}',
           ],
           migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
           logging: configService.get<boolean>('dataDatabase.logging', false),
@@ -319,6 +321,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     AgentToolsModule, // Agent-invocable tool registry (protocol-neutral)
     IntegrationModule, // Integration Fabric: @Public provider-webhook ingress + fast-ack pipeline
     IntakeModule, // Phase 1: Bot de Intake — ingest/read leads on the 'data' connection
+    MemoryModule, // Phase 5: Long-term memory — conversation recall and retention
     ...searchModules, // Global message search (opt-out via SEARCH_ENABLED=false; default ON)
     ...mcpModules, // MCP Streamable-HTTP server (opt-in via MCP_ENABLED=true)
     ...serveStaticModules, // Bundled dashboard SPA (production single-port setup)
