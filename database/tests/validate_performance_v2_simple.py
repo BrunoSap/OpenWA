@@ -157,8 +157,8 @@ def setup_test_data(conn) -> Dict[str, Any]:
 
     # Insert test clients (using valid CPFs that pass validation)
     test_clients = [
-        ("559912345678@c.us", "12345678909", "Test Client 1", '{"tenant_id": "test_tenant"}'),  # Valid CPF
-        ("559987654321@c.us", "98765432100", "Test Client 2", '{"tenant_id": "test_tenant"}'),  # Valid CPF
+        ("559912345678@c.us", "86302911680", "Test Client 1", '{"tenant_id": "test_tenant"}'),  # Valid CPF
+        ("559987654321@c.us", "86534412047", "Test Client 2", '{"tenant_id": "test_tenant"}'),  # Valid CPF
     ]
 
     client_data = []
