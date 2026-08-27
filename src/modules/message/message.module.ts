@@ -41,6 +41,6 @@ import { PLUGIN_MESSAGE_PORT, type PluginMessagePort } from '../../core/plugins/
       inject: [MessageService],
     },
   ],
-  exports: [MessageService, BulkMessageService, SendPacingService],
+  exports: [MessageService, BulkMessageService, SendPacingService, MessageSendService],
 })
 export class MessageModule {}

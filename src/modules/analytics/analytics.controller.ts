@@ -19,22 +19,30 @@ import {
 import { IntentQueryDto } from './dto/intent-query.dto';
 import { IntentResponseDto } from './dto/intent-response.dto';
 import { IntentTaxonomyDto } from './dto/intent-taxonomy.dto';
+import { FunnelQueryDto } from './dto/funnel-query.dto';
+import { FunnelResponseDto } from './dto/funnel-response.dto';
+import { ABExperimentDto } from './dto/ab-experiment.dto';
 import { AnalyticsIntentClassification } from './entities/analytics-intent-classification.entity';
 import { AnalyticsIntentTaxonomy } from './entities/analytics-intent-taxonomy.entity';
 import { AnalyticsIntentRoutingRule } from './entities/analytics-intent-routing-rule.entity';
+import { AnalyticsABExperiment } from './entities/analytics-ab-experiment.entity';
+import { FunnelAnalyticsService } from './services/funnel-analytics.service';
+import { ABTestingService } from './services/ab-testing.service';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 
 /**
  * Phase 6 Plans 01 + 02b + 03: Analytics REST endpoints (DASH-05, DASH-01, DASH-02).
  * Phase 10 Plan 01: Intent classification endpoints (DASH-03).
+ * Phase 10 Plan 02: Funnel analytics + A/B experiment CRUD (DASH-04).
  *
  * Plan 01: GET /events
  * Plan 02b: GET /overview, /performance, /cost, /conversations
  * Plan 03: GET /export, GET /stream (SSE), GET|POST|DELETE /alerts/rules
- * Phase 10 Plan 01: GET /intents
+ * Phase 10 Plan 01: GET /intents, GET|POST|DELETE /intents/taxonomy, GET|POST /intents/routing-rules
+ * Phase 10 Plan 02: GET /funnel, GET|POST|PUT /experiments
  *
- * All endpoints require OPERATOR role (T-06-01, T-06-06, T-06-08, T-06-10, T-10-03) to prevent unauthenticated access
+ * All endpoints require OPERATOR role (T-06-01, T-06-06, T-06-08, T-06-10, T-10-03, T-10-05, T-10-07) to prevent unauthenticated access
  * to analytics data containing chatId/userId and business metrics.
  */
 @ApiTags('analytics')
@@ -43,6 +51,8 @@ export class AnalyticsController {
   constructor(
     private readonly analyticsService: AnalyticsEventsService,
     private readonly exportService: AnalyticsExportService,
+    private readonly funnelAnalyticsService: FunnelAnalyticsService,
+    private readonly abTestingService: ABTestingService,
     @InjectRepository(AnalyticsAlertRule, 'data')
     private readonly alertRuleRepository: Repository<AnalyticsAlertRule>,
     @InjectRepository(AnalyticsIntentClassification, 'data')
@@ -51,6 +61,8 @@ export class AnalyticsController {
     private readonly intentTaxonomyRepository: Repository<AnalyticsIntentTaxonomy>,
     @InjectRepository(AnalyticsIntentRoutingRule, 'data')
     private readonly intentRoutingRuleRepository: Repository<AnalyticsIntentRoutingRule>,
+    @InjectRepository(AnalyticsABExperiment, 'data')
+    private readonly experimentRepository: Repository<AnalyticsABExperiment>,
   ) {}
 
   /**
@@ -448,6 +460,163 @@ export class AnalyticsController {
   ): Promise<AnalyticsIntentRoutingRule> {
     const rule = this.intentRoutingRuleRepository.create(body);
     return this.intentRoutingRuleRepository.save(rule);
+  }
+
+  /**
+   * Get funnel analytics with drop-off rates and A/B test comparison (Phase 10 Plan 02 Task 3).
+   *
+   * @param query - Query params (startDate, endDate, variantId)
+   * @returns Funnel conversion stats + variant comparison + recommendations
+   */
+  @Get('funnel')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Get funnel analytics' })
+  @ApiResponse({ status: 200, description: 'Funnel analytics with A/B test comparison' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
+  async getFunnelAnalytics(@Query() query: FunnelQueryDto): Promise<FunnelResponseDto> {
+    const startDate = query.startDate ? new Date(query.startDate) : this.getDefaultStartDate();
+    const endDate = query.endDate ? new Date(query.endDate) : new Date();
+
+    // Get overall stats (no variant filter)
+    const overallStats = await this.funnelAnalyticsService.computeFunnelStats(startDate, endDate);
+
+    // Convert to OverallConversionDto format
+    const stagesMap = new Map(overallStats.map((s) => [s.stage, s.users]));
+    const overallConversion = {
+      initiated: stagesMap.get('initiated') || 0,
+      qualified: stagesMap.get('qualified') || 0,
+      data_collected: stagesMap.get('data_collected') || 0,
+      exported: stagesMap.get('exported') || 0,
+      converted: stagesMap.get('converted') || 0,
+      conversionRate:
+        stagesMap.get('initiated') && stagesMap.get('converted')
+          ? (stagesMap.get('converted')! / stagesMap.get('initiated')!)
+          : 0,
+    };
+
+    // Get stats per variant (variant_0, variant_1, etc.)
+    const byVariant = [];
+    for (let i = 0; i < 2; i++) {
+      const variantId = `variant_${i}`;
+      const variantStats = await this.funnelAnalyticsService.computeFunnelStats(
+        startDate,
+        endDate,
+        variantId,
+      );
+
+      if (variantStats.length > 0) {
+        const variantStagesMap = new Map(variantStats.map((s) => [s.stage, s.users]));
+        const conversionRate =
+          variantStagesMap.get('initiated') && variantStagesMap.get('converted')
+            ? (variantStagesMap.get('converted')! / variantStagesMap.get('initiated')!)
+            : 0;
+
+        byVariant.push({
+          variantId,
+          stages: variantStats.map((s) => ({
+            stage: s.stage,
+            users: s.users,
+            dropOffRate: s.dropOffRate,
+          })),
+          conversionRate,
+        });
+      }
+    }
+
+    // Generate recommendations
+    const recommendations = this.funnelAnalyticsService.getConversionRecommendations(
+      overallConversion,
+      byVariant,
+    );
+
+    return {
+      overallConversion,
+      byVariant,
+      recommendations,
+    };
+  }
+
+  /**
+   * Get all A/B experiments (Phase 10 Plan 02 Task 3).
+   *
+   * @returns Array of experiments
+   */
+  @Get('experiments')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Get A/B experiments' })
+  @ApiResponse({ status: 200, description: 'A/B experiments', type: [AnalyticsABExperiment] })
+  @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
+  async getExperiments(): Promise<AnalyticsABExperiment[]> {
+    return this.experimentRepository.find({ order: { created_at: 'DESC' } });
+  }
+
+  /**
+   * Create a new A/B experiment (Phase 10 Plan 02 Task 3).
+   *
+   * @param body - Experiment data
+   * @returns Created experiment
+   */
+  @Post('experiments')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Create A/B experiment' })
+  @ApiResponse({ status: 201, description: 'Experiment created', type: AnalyticsABExperiment })
+  @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
+  @ApiResponse({ status: 400, description: 'Validation error (start_date >= end_date or variant_count < 2)' })
+  async createExperiment(@Body() body: ABExperimentDto): Promise<AnalyticsABExperiment> {
+    // Validation: start_date < end_date
+    if (body.end_date && new Date(body.start_date) >= new Date(body.end_date)) {
+      throw new Error('start_date must be before end_date');
+    }
+
+    // Validation: variant_count >= 2
+    if (body.variant_count && body.variant_count < 2) {
+      throw new Error('variant_count must be at least 2');
+    }
+
+    const experiment = this.experimentRepository.create({
+      experiment_id: body.experiment_id,
+      name: body.name,
+      description: body.description,
+      variant_count: body.variant_count || 2,
+      variant_names: body.variant_names,
+      start_date: new Date(body.start_date),
+      end_date: body.end_date ? new Date(body.end_date) : null,
+      active: true,
+    });
+
+    return this.experimentRepository.save(experiment);
+  }
+
+  /**
+   * Update an A/B experiment (Phase 10 Plan 02 Task 3).
+   *
+   * @param id - Experiment ID
+   * @param body - Updated experiment data
+   * @returns Updated experiment
+   */
+  @Post('experiments/:id')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Update A/B experiment' })
+  @ApiResponse({ status: 200, description: 'Experiment updated', type: AnalyticsABExperiment })
+  @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
+  @ApiResponse({ status: 404, description: 'Experiment not found' })
+  async updateExperiment(
+    @Param('id') id: string,
+    @Body() body: Partial<ABExperimentDto>,
+  ): Promise<AnalyticsABExperiment> {
+    const experiment = await this.experimentRepository.findOne({ where: { id: parseInt(id) } });
+
+    if (!experiment) {
+      throw new Error(`Experiment with ID ${id} not found`);
+    }
+
+    // Update allowed fields
+    if (body.name) experiment.name = body.name;
+    if (body.description !== undefined) experiment.description = body.description;
+    if (body.end_date) experiment.end_date = new Date(body.end_date);
+    if (body.variant_names) experiment.variant_names = body.variant_names;
+
+    return this.experimentRepository.save(experiment);
   }
 
   /**

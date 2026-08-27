@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { MessageModule } from '../message/message.module';
 import { AnalyticsEvent } from './entities/analytics-event.entity';
 import { AnalyticsAggregate } from './entities/analytics-aggregate.entity';
 import { AnalyticsAlertRule } from './entities/analytics-alert-rule.entity';
@@ -10,6 +11,7 @@ import { AnalyticsIntentTaxonomy } from './entities/analytics-intent-taxonomy.en
 import { AnalyticsIntentClassification } from './entities/analytics-intent-classification.entity';
 import { AnalyticsIntentRoutingRule } from './entities/analytics-intent-routing-rule.entity';
 import { AnalyticsABExperiment } from './entities/analytics-ab-experiment.entity';
+import { AnalyticsSatisfactionResponse } from './entities/analytics-satisfaction-response.entity';
 import { AnalyticsEventsService } from './services/analytics-events.service';
 import { AnalyticsAggregationService } from './services/analytics-aggregation.service';
 import { AnalyticsExportService } from './services/analytics-export.service';
@@ -18,11 +20,16 @@ import { AlertDispatchService } from './services/alert-dispatch.service';
 import { IntentClassificationService } from './services/intent-classification.service';
 import { ABTestingService } from './services/ab-testing.service';
 import { FunnelAnalyticsService } from './services/funnel-analytics.service';
+import { SatisfactionSurveyService } from './services/satisfaction-survey.service';
+import { WhatsAppInteractiveService } from './services/whatsapp-interactive.service';
+import { SurveyResponseHandler } from './services/survey-response-handler.service';
 import { AnalyticsEventListener } from './listeners/analytics-event.listener';
+import { SurveySchedulerListener } from './listeners/survey-scheduler.listener';
 import { AnalyticsAggregationProcessor } from './processors/analytics-aggregation.processor';
 import { AnalyticsCleanupProcessor } from './processors/analytics-cleanup.processor';
 import { AnalyticsAlertProcessor } from './processors/analytics-alert.processor';
 import { IntentClassificationProcessor } from './processors/intent-classification.processor';
+import { SurveySchedulerProcessor } from './processors/survey-scheduler.processor';
 import { AnalyticsController } from './analytics.controller';
 import { QUEUE_NAMES } from '../queue/queue-names';
 import { createLogger } from '../../common/services/logger.service';
@@ -47,6 +54,7 @@ import { createLogger } from '../../common/services/logger.service';
  */
 @Module({
   imports: [
+    MessageModule,
     TypeOrmModule.forFeature(
       [
         AnalyticsEvent,
@@ -77,11 +85,16 @@ import { createLogger } from '../../common/services/logger.service';
     IntentClassificationService,
     ABTestingService,
     FunnelAnalyticsService,
+    SatisfactionSurveyService,
+    WhatsAppInteractiveService,
+    SurveyResponseHandler,
     AnalyticsEventListener,
+    SurveySchedulerListener,
     AnalyticsAggregationProcessor,
     AnalyticsCleanupProcessor,
     AnalyticsAlertProcessor,
     IntentClassificationProcessor,
+    SurveySchedulerProcessor,
   ],
   exports: [AnalyticsEventsService, AnalyticsAggregationService, IntentClassificationService, ABTestingService, FunnelAnalyticsService],
 })
