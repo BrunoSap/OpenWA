@@ -148,3 +148,152 @@ export function formatToMimeType(format: string): string {
   };
   return map[format] || 'application/octet-stream';
 }
+
+/**
+ * Check semantic similarity between two image descriptions using LLM-as-judge.
+ *
+ * @param expected - Expected description
+ * @param actual - Actual description from Vision API
+ * @returns Similarity score (0.0-1.0) and explanation
+ * @throws Error if OPENAI_API_KEY is not set or API request fails
+ */
+export async function semanticSimilarity(
+  expected: string,
+  actual: string
+): Promise<{ score: number; explanation: string }> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY environment variable is not set');
+  }
+
+  const llm = new ChatOpenAI({
+    model: 'gpt-4o-mini',
+    apiKey,
+    temperature: 0,
+  });
+
+  const prompt = `You are a grading assistant. Compare two image descriptions for semantic similarity.
+
+EXPECTED DESCRIPTION: ${expected}
+
+ACTUAL DESCRIPTION: ${actual}
+
+Rate the semantic similarity on a scale of 0.0 to 1.0, where:
+- 1.0 = Perfect match (same meaning, may differ in wording)
+- 0.7-0.9 = Good match (captures main elements, minor differences)
+- 0.5-0.7 = Partial match (some key elements present)
+- 0.0-0.5 = Poor match (different content)
+
+Focus on key visual elements: objects, colors, text content, scene composition, and overall subject matter.
+
+Respond with JSON only: { "score": <number>, "explanation": "<string>" }`;
+
+  const response = await llm.invoke([
+    { role: 'system', content: 'You are a grading assistant.' },
+    { role: 'user', content: prompt },
+  ]);
+
+  // Parse JSON response, handling potential markdown code fences
+  let jsonString = (response.content as string).trim();
+
+  // Remove markdown code fences if present
+  if (jsonString.startsWith('```')) {
+    jsonString = jsonString.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+  }
+
+  try {
+    const result = JSON.parse(jsonString);
+    if (typeof result.score !== 'number' || typeof result.explanation !== 'string') {
+      throw new Error('Invalid JSON response format: missing score or explanation');
+    }
+    return { score: result.score, explanation: result.explanation };
+  } catch (error) {
+    throw new Error(
+      `Failed to parse LLM response as JSON: ${error instanceof Error ? error.message : 'unknown error'}. Response: ${jsonString}`
+    );
+  }
+}
+
+/**
+ * Analyze image with automatic fallback handling.
+ * If analysis fails (timeout or API error), returns a fallback result
+ * instead of throwing an exception.
+ *
+ * @param imageBuffer - Image buffer (JPEG, PNG, WebP, or GIF format)
+ * @param opts - Analysis options (prompt, model, detail, timeoutMs)
+ * @returns Analysis result with ok flag and optional fallback reason
+ */
+export async function analyzeWithFallback(
+  imageBuffer: Buffer,
+  opts: {
+    prompt?: string;
+    model?: string;
+    detail?: 'low' | 'high' | 'auto';
+    timeoutMs?: number;
+  } = {}
+): Promise<{
+  description: string;
+  latencyMs: number;
+  ok: boolean;
+  fallbackReason?: 'timeout' | 'api_error';
+}> {
+  const timeoutMs = opts.timeoutMs || 10000;
+  const startTime = Date.now();
+
+  try {
+    // Create timeout promise
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs);
+    });
+
+    // Race between analysis and timeout
+    const result = await Promise.race([
+      analyzeImage(imageBuffer, {
+        prompt: opts.prompt,
+        model: opts.model,
+        detail: opts.detail,
+      }),
+      timeoutPromise,
+    ]);
+
+    return {
+      description: result.description,
+      latencyMs: result.latencyMs,
+      ok: true,
+    };
+  } catch (error) {
+    const latencyMs = Date.now() - startTime;
+
+    if (error instanceof Error && error.message === 'TIMEOUT') {
+      return {
+        description: '',
+        latencyMs,
+        ok: false,
+        fallbackReason: 'timeout',
+      };
+    }
+
+    // API error or other failure (including unsupported format)
+    return {
+      description: '',
+      latencyMs,
+      ok: false,
+      fallbackReason: 'api_error',
+    };
+  }
+}
+
+/**
+ * Build a user-friendly fallback message when image analysis fails.
+ * Returns a deterministic message instructing the user to resend.
+ *
+ * @param fallbackReason - Reason for analysis failure
+ * @returns User-facing message string
+ */
+export function buildFallbackReply(fallbackReason: 'timeout' | 'api_error'): string {
+  if (fallbackReason === 'timeout') {
+    return 'Desculpe, não consegui processar sua imagem (tempo esgotado). Por favor, reenvie a imagem.';
+  }
+
+  return 'Desculpe, ocorreu um erro ao processar sua imagem. Por favor, reenvie a imagem.';
+}
