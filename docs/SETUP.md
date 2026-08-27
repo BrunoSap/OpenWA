@@ -652,6 +652,109 @@ for i in {1..100}; do curl -s http://localhost:2785/api/health/live -I | grep X-
 - `timeo=600` (60s retry timeout) e `retrans=2` são conservadores
 - Se persistir, verificar NFS server logs: `sudo journalctl -u nfs-kernel-server`
 
+---
+
+## Observability
+
+OpenWA fornece observability completo para multi-replica deployments: distributed tracing, metrics, logs, e SLO monitoring.
+
+### Distributed Tracing (OpenTelemetry)
+
+Ative tracing para correlacionar requests cross-replica:
+
+```bash
+# Enable in .env
+TELEMETRY_ENABLED=true
+TELEMETRY_SERVICE_NAME=openwa-api
+TELEMETRY_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+
+# Start with Jaeger
+docker-compose --profile scale-3 up -d
+
+# Access Jaeger UI
+open http://localhost:16686
+```
+
+**Trace visualization:**
+- Search by trace_id (from logs ou error responses)
+- Filter by replica.id para ver qual replica processou request
+- Span duration mostra latência per-service
+
+### SLO/SLI Definitions
+
+OpenWA define 3 SLOs principais:
+
+| SLO | Target | Measurement Window | Alert Threshold |
+|-----|--------|-------------------|-----------------|
+| **Uptime** | 99.5% replicas healthy | Rolling 5 minutes | <99.5% for 5min |
+| **Latency** | p95 < 500ms | Rolling 5 minutes | p95 >500ms for 5min |
+| **Error Rate** | <1% requests 5xx | Rolling 5 minutes | >1% for 5min |
+
+**SLIs (Service Level Indicators):**
+- `up{job="openwa-api"}`: binary health (0=down, 1=up)
+- `http_request_duration_seconds`: latency histogram
+- `http_requests_total{status=~"5.."}`: error count
+
+### Prometheus Alerts
+
+Alerting rules em `prometheus/alerts.yml`:
+
+- **ReplicaDown**: Replica não responde por 2+ minutos
+- **ReplicaUnhealthy**: Health check falhando por 1+ minuto
+- **LoadImbalance**: Variance de load >50% entre replicas
+- **LatencySLOViolation**: p95 >500ms por 5+ minutos
+- **ErrorRateSLOViolation**: Taxa de erro >1% por 5+ minutos
+- **UptimeSLOViolation**: <99.5% replicas up por 5+ minutos
+
+**Alert routing (Alertmanager):**
+Configure receivers em `prometheus/alertmanager.yml`:
+- Slack webhook para alertas critical
+- Email para alertas warning
+- PagerDuty para SLO violations
+
+### Centralized Logging
+
+Loki já configurado (via docker-compose). Para correlacionar logs cross-replica:
+
+```bash
+# Query Loki via Grafana Explore
+# Filter by trace_id (from distributed tracing)
+{container_name=~"openwa-api.*"} |= "trace_id=abc123"
+
+# Filter by replica
+{container_name="openwa-api-1"} | json | level="error"
+
+# Aggregate error rate
+sum(rate({container_name=~"openwa-api.*"} |= "ERROR" [5m]))
+```
+
+### Grafana Dashboards
+
+Dashboard `scaling.json` visualiza multi-replica metrics:
+- Request rate per replica
+- Latency p50/p95/p99 per replica
+- Memory/CPU usage per replica
+- Error rate per replica
+- Active sessions per replica
+
+Import: Grafana UI → Dashboards → Import → `grafana/dashboards/scaling.json`
+
+### Troubleshooting Observability
+
+**Traces não aparecem no Jaeger:**
+- Verificar TELEMETRY_ENABLED=true
+- Verificar Jaeger rodando: `docker ps | grep jaeger`
+- Verificar endpoint: `curl http://localhost:4318/v1/traces`
+
+**Alertas não disparam:**
+- Verificar Prometheus scraping replicas: `curl http://localhost:9090/targets`
+- Verificar alerting rules carregadas: `curl http://localhost:9090/api/v1/rules`
+- Verificar Alertmanager config: `docker-compose logs alertmanager`
+
+**Logs não correlacionam:**
+- Verificar trace_id nos logs (formato JSON structured)
+- Verificar Loki labels: `{container_name=~"openwa-api.*"}`
+
 **Replica não inicia:**
 - Verificar NFS mount: `docker exec openwa-api-scaled-1 df -h | grep /app/data`
 - Verificar permissões: `docker exec openwa-api-scaled-1 ls -la /app/data`

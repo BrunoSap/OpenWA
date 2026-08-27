@@ -62,3 +62,102 @@ groups:
         annotations:
           summary: "Daily cost budget exceeded"
           description: "Daily cost increase is ${{ $value }} (budget $50)"
+
+  # Multi-Replica Health Alerts
+  - name: replica_health
+    interval: 30s
+    rules:
+      - alert: ReplicaDown
+        expr: up{job="openwa-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "OpenWA API replica is down"
+          description: "Replica {{ $labels.instance }} has been down for more than 2 minutes."
+          runbook: "Check docker ps and logs: docker logs {{ $labels.instance }}"
+
+      - alert: ReplicaUnhealthy
+        expr: probe_success{job="openwa-health-check"} == 0
+        for: 1m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "OpenWA API replica failing health checks"
+          description: "Replica {{ $labels.instance }} /health/ready returning non-200 for 1+ minutes."
+          runbook: "Check /health/ready response: curl http://{{ $labels.instance }}/api/health/ready"
+
+      - alert: LoadImbalance
+        expr: |
+          (
+            max(rate(http_requests_total{job="openwa-api"}[5m]))
+            - min(rate(http_requests_total{job="openwa-api"}[5m]))
+          ) / max(rate(http_requests_total{job="openwa-api"}[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: load_balancer
+        annotations:
+          summary: "Load imbalance detected across replicas"
+          description: "Request rate variance >50% between replicas. Check sticky session config."
+          runbook: "Verify nginx ip_hash config and client IP distribution."
+
+      - alert: HighReplicaMemory
+        expr: container_memory_usage_bytes{name=~"openwa-api.*"} / container_spec_memory_limit_bytes > 0.85
+        for: 3m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "Replica memory usage >85%"
+          description: "Replica {{ $labels.name }} using {{ $value | humanizePercentage }} of memory limit."
+          runbook: "Check for memory leaks or increase OPENWA_MEM_LIMIT in docker-compose.yml"
+
+  - name: slo_violations
+    interval: 1m
+    rules:
+      - alert: LatencySLOViolation
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+          slo: latency
+        annotations:
+          summary: "Latency SLO violated (p95 > 500ms)"
+          description: "p95 latency is {{ $value | humanizeDuration }} over 5 minutes."
+          runbook: "Check slow queries, Redis latency, or increase replica count."
+
+      - alert: ErrorRateSLOViolation
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            / sum(rate(http_requests_total[5m]))
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+          component: api
+          slo: error_rate
+        annotations:
+          summary: "Error rate SLO violated (>1% 5xx)"
+          description: "Error rate is {{ $value | humanizePercentage }} over 5 minutes."
+          runbook: "Check application logs for exceptions: docker-compose logs openwa-api"
+
+      - alert: UptimeSLOViolation
+        expr: |
+          (
+            sum(up{job="openwa-api"})
+            / count(up{job="openwa-api"})
+          ) < 0.995
+        for: 5m
+        labels:
+          severity: critical
+          component: api
+          slo: uptime
+        annotations:
+          summary: "Uptime SLO violated (<99.5% replicas up)"
+          description: "Only {{ $value | humanizePercentage }} of replicas are up."
+          runbook: "Check why replicas are down: docker-compose ps && docker-compose logs"
