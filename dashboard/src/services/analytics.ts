@@ -126,31 +126,85 @@ async function getConversations(params: AnalyticsQueryParams): Promise<Analytics
 }
 
 /**
- * Get alert rules (stub for Plan 03).
+ * Get alert rules.
  */
-async function getAlertRules(): Promise<unknown[]> {
-  return [];
+async function getAlertRules(): Promise<any[]> {
+  const apiKey = sessionStorage.getItem('openwa_api_key');
+  const response = await fetch(`${API_BASE_URL}/analytics/alerts/rules`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(apiKey ? { 'X-API-Key': apiKey } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Analytics API error: ${response.statusText}`);
+  }
+
+  return response.json();
 }
 
 /**
- * Create alert rule (stub for Plan 03).
+ * Create alert rule.
  */
-async function createAlertRule(_rule: unknown): Promise<unknown> {
-  throw new Error('Not implemented');
+async function createAlertRule(rule: any): Promise<any> {
+  const apiKey = sessionStorage.getItem('openwa_api_key');
+  const response = await fetch(`${API_BASE_URL}/analytics/alerts/rules`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(apiKey ? { 'X-API-Key': apiKey } : {}),
+    },
+    body: JSON.stringify(rule),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Analytics API error: ${response.statusText}`);
+  }
+
+  return response.json();
 }
 
 /**
- * Delete alert rule (stub for Plan 03).
+ * Delete alert rule.
  */
-async function deleteAlertRule(_id: string): Promise<void> {
-  throw new Error('Not implemented');
+async function deleteAlertRule(id: string): Promise<void> {
+  const apiKey = sessionStorage.getItem('openwa_api_key');
+  const response = await fetch(`${API_BASE_URL}/analytics/alerts/rules/${id}`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(apiKey ? { 'X-API-Key': apiKey } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Analytics API error: ${response.statusText}`);
+  }
 }
 
 /**
- * Export events as CSV or JSON (stub for Plan 03).
+ * Export events as CSV or JSON.
  */
-async function exportEvents(_params: AnalyticsQueryParams, _format: 'csv' | 'json'): Promise<Blob> {
-  throw new Error('Not implemented');
+async function exportEvents(params: AnalyticsQueryParams & { format: 'csv' | 'json' }): Promise<Blob> {
+  const query = new URLSearchParams();
+  query.set('format', params.format);
+  if (params.startDate) query.set('startDate', params.startDate.toISOString());
+  if (params.endDate) query.set('endDate', params.endDate.toISOString());
+  if (params.sessionId) query.set('sessionId', params.sessionId);
+
+  const apiKey = sessionStorage.getItem('openwa_api_key');
+  const response = await fetch(`${API_BASE_URL}/analytics/export?${query}`, {
+    headers: {
+      ...(apiKey ? { 'X-API-Key': apiKey } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Export failed: ${response.statusText}`);
+  }
+
+  return response.blob();
 }
 
 /**
