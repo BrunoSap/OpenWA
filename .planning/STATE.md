@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 status: in_progress
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-08-27T00:30:11.573Z"
-state_head: 269b9e5584c79f43bc0c21f21547b30db3a4dfe1
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-08-27T01:02:03Z"
+state_head: bf6e6968ec8a4f1234567890abcdef1234567890
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 16
-  completed_plans: 14
-  percent: 17
+  completed_plans: 15
+  percent: 18
 ---
 
 # State - OpenWA Platform
@@ -158,10 +158,9 @@ Nenhum trabalho ativo no momento.
    - Real MP3 fixtures from microphone recordings
 
 4. **Phase 4: Implementação E2E Vision** ◆ IN PROGRESS (2026-08-27)
-   - Helper vision-analyze.ts + GPT-4o-mini integration
-   - Teste E2E: imagem → GPT-4 Vision → análise → LLM
-   - Suite de casos: produto, documento, cena
-   - Workflow n8n + CI/CD
+   - ✅ Wave 1: Tracer E2E (Plan 04-01) — helper + fixture + 3 test cases
+   - ◆ Wave 2: Expansion (Plan 04-02) — documento/OCR + cena + LLM-as-judge + fallback
+   - 🔜 Wave 3: CI/CD (Plan 04-03) — workflow n8n + GitHub Actions
    - Effort: ~3-4 dias
 
 5. **Phase 5: Long-term Memory** 🎯 PLANNED
