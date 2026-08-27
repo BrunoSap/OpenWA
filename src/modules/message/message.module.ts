@@ -9,6 +9,7 @@ import { MessageController } from './message.controller';
 import { SessionModule } from '../session/session.module';
 import { TemplateModule } from '../template/template.module';
 import { ChatMediaModule } from '../chat-media/chat-media.module';
+import { UsageModule } from '../usage/usage.module';
 import { Message } from './entities/message.entity';
 import { Session } from '../session/entities/session.entity';
 import { SendPacingService } from './send-pacing.service';
@@ -21,6 +22,7 @@ import { PLUGIN_MESSAGE_PORT, type PluginMessagePort } from '../../core/plugins/
     SessionModule,
     TemplateModule,
     ChatMediaModule,
+    UsageModule,
   ],
   controllers: [MessageController],
   providers: [

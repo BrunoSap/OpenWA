@@ -18,6 +18,7 @@ import { SsrfBlockedError, SSRF_BLOCKED_CLIENT_MESSAGE } from '../../common/secu
 import { resolveFeatureFlags } from '../../config/feature-flags';
 import { isUniqueViolation } from '../../common/utils/db-errors';
 import { ChatMediaArchiveService } from '../chat-media/chat-media-archive.service';
+import { UsageService } from '../usage/usage.service';
 
 /** Default cap on a rendered template's final text; overridable via TEMPLATE_RENDER_MAX_CHARS. */
 export const DEFAULT_TEMPLATE_RENDER_MAX_CHARS = 64 * 1024;
@@ -87,6 +88,9 @@ export class MessageSendService {
     // archived — the inline row copy and the read endpoint are unaffected either way.
     @Optional()
     private readonly chatMediaArchive?: ChatMediaArchiveService,
+    // Optional: UsageService for tracking message usage and emitting Stripe billing meter events
+    @Optional()
+    private readonly usageService?: UsageService,
   ) {}
 
   async sendText(sessionId: string, dto: SendTextMessageDto): Promise<MessageResponseDto> {
@@ -659,6 +663,15 @@ export class MessageSendService {
       await this.messageRepository.save(message);
       // Reconcile the earlier PENDING emission with the finalized row (#906).
       this.emitPersisted(message.sessionId, message);
+
+      // Track message usage for billing (fire-and-forget, non-blocking)
+      if (this.usageService) {
+        void this.usageService.trackMessageSent(message.id, {
+          sessionId: message.sessionId,
+          to: message.chatId,
+          type: message.type,
+        }).catch(() => undefined);
+      }
     } catch (persistError) {
       if (result.id && isUniqueViolation(persistError)) {
         // The engine's own-send echo (onMessageCreate) won the race and already persisted a row with

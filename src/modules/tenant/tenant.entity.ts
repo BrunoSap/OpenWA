@@ -38,6 +38,18 @@ export class Tenant {
   @Column({ type: 'varchar', nullable: true, name: 'stripe_subscription_id' })
   stripeSubscriptionId!: string | null;
 
+  @Column({ type: 'varchar', length: 50, default: 'none', name: 'subscription_status' })
+  subscriptionStatus!: string;
+
+  @Column({ type: 'varchar', length: 50, default: 'none', name: 'payment_status' })
+  paymentStatus!: string;
+
+  @Column({ type: 'timestamp', nullable: true, name: 'grace_period_ends_at' })
+  gracePeriodEndsAt!: Date | null;
+
+  @Column({ type: 'boolean', default: false, name: 'allow_overage' })
+  allowOverage!: boolean;
+
   @Column({ type: 'boolean', default: true, name: 'is_active' })
   isActive!: boolean;
 

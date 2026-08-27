@@ -18,6 +18,10 @@ export class AnalyticsEvent {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  /** Tenant identifier for multi-tenant isolation (Phase 9 Plan 1). */
+  @Column({ type: 'uuid', nullable: true })
+  tenant_id?: string;
+
   /** Event type (message.processed, session.created, webhook.sent, etc). */
   @Column({ type: 'varchar' })
   event_type!: string;
