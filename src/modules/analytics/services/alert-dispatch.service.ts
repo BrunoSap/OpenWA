@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createLogger } from '../../../common/services/logger.service';
 import { AnalyticsAlertRule } from '../entities/analytics-alert-rule.entity';
-import axios from 'axios';
+import { postWebhookPayload } from '../../webhook/utils/deliver-once';
 
 /**
  * Phase 6 Plan 03 Task 2: Alert dispatch service (DASH-02, T-06-09).
@@ -75,7 +75,9 @@ export class AlertDispatchService {
     }
 
     try {
-      await axios.post(this.slackWebhookUrl, { text: message });
+      const payload = JSON.stringify({ text: message });
+      const timeout = this.configService.get<number>('webhook.timeout', 10000);
+      await postWebhookPayload(this.slackWebhookUrl, payload, { 'Content-Type': 'application/json' }, timeout);
       this.logger.log('Alert dispatched to Slack');
     } catch (error) {
       this.logger.error(`Failed to dispatch to Slack: ${error}`);
@@ -83,7 +85,7 @@ export class AlertDispatchService {
   }
 
   /**
-   * Dispatches to webhook (with SSRF guard).
+   * Dispatches to webhook (with SSRF guard via postWebhookPayload).
    *
    * @param webhookUrl - Target webhook URL
    * @param rule - Alert rule
@@ -94,15 +96,8 @@ export class AlertDispatchService {
     rule: AnalyticsAlertRule,
     currentValue: number,
   ): Promise<void> {
-    // T-06-09: Validate webhook URL against allowlist/scheme (reuse project's SSRF guard pattern)
-    // For now, allow http/https only (basic check)
-    if (!webhookUrl.startsWith('http://') && !webhookUrl.startsWith('https://')) {
-      this.logger.warn(`Webhook URL rejected (invalid scheme): ${webhookUrl}`);
-      return;
-    }
-
     try {
-      await axios.post(webhookUrl, {
+      const payload = JSON.stringify({
         alert_name: rule.name,
         metric: rule.metric,
         condition: rule.condition,
@@ -110,6 +105,9 @@ export class AlertDispatchService {
         current_value: currentValue,
         timestamp: new Date().toISOString(),
       });
+      const timeout = this.configService.get<number>('webhook.timeout', 10000);
+      // T-06-09: postWebhookPayload includes SSRF guard (validates URL scheme, checks allowlist)
+      await postWebhookPayload(webhookUrl, payload, { 'Content-Type': 'application/json' }, timeout);
       this.logger.log(`Alert dispatched to webhook: ${webhookUrl}`);
     } catch (error) {
       this.logger.error(`Failed to dispatch to webhook: ${error}`);
