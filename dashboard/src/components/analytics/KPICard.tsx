@@ -4,7 +4,8 @@
  * Renders a metric card with title, value, optional trend indicator, and icon.
  */
 
-import { LucideIcon, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 export interface KPICardProps {
   title: string;

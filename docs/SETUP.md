@@ -572,6 +572,140 @@ Detalhes completos: ver `archive/FIX_PLUGIN_404.md`
 
 ---
 
+## Grafana Analytics Dashboard
+
+Dashboard de visualização de métricas operacionais consumindo os endpoints de analytics (Phase 6) via Grafana auto-provisionado.
+
+### Pré-requisitos
+
+Antes de iniciar o Grafana, configure as seguintes variáveis de ambiente no arquivo `.env`:
+
+**1. GRAFANA_PASSWORD** - Senha do admin do Grafana (padrão: `admin` se não definida)
+
+```bash
+GRAFANA_PASSWORD=sua_senha_segura_aqui
+```
+
+**2. OPERATOR_API_KEY** - Chave de API com role OPERATOR para autenticar as chamadas ao endpoint `/api/analytics/*`
+
+Para criar uma chave OPERATOR:
+
+1. Acesse o dashboard OpenWA em http://localhost:2785
+2. Navegue até a página **API Keys**
+3. Clique em **Create API Key**
+4. Selecione role **OPERATOR**
+5. Copie o valor da chave gerada
+6. Adicione ao `.env`:
+
+```bash
+OPERATOR_API_KEY=sua_chave_operator_aqui
+```
+
+### Iniciar Grafana
+
+```bash
+# Inicie Grafana + Prometheus + OpenWA API com profile monitoring
+docker compose -f docker-compose.full-stack.yml --profile monitoring up -d grafana prometheus openwa-api
+```
+
+### Acessar Dashboard
+
+1. Abra o navegador em **http://localhost:3000**
+2. Login:
+   - **Usuário:** `admin`
+   - **Senha:** valor de `${GRAFANA_PASSWORD}` (padrão: `admin`)
+3. Navegue até **Dashboards → OpenWA Analytics Overview**
+
+### O que é Auto-Provisionado
+
+Ao iniciar o Grafana, os seguintes recursos são criados automaticamente (sem configuração manual):
+
+**Datasources:**
+- **Prometheus** - Conecta em `http://prometheus:9090` para métricas de infraestrutura
+- **OpenWA Analytics API** - Conecta em `http://openwa-api:2785/api/analytics` com autenticação via `Authorization: Bearer ${OPERATOR_API_KEY}`
+
+**Dashboard:**
+- **OpenWA Analytics Overview** - 4 painéis principais:
+  1. **Overview KPIs** - Taxa de resolução, fallback rate, custo por conversa, DAU, MAU
+  2. **Performance** - Latências p50/p95/p99 (API + Prometheus histogram)
+  3. **Cost** - Breakdown de custo por feature + total
+  4. **Conversations** - Lista de conversas com métricas individuais
+  5. **Alerts** - Alertas ativos do Prometheus (`prometheus/alerts.yml`)
+
+### Troubleshooting
+
+**Sintoma:** Datasource mostra erro "Unknown datasource type: simpod-json-datasource"
+
+**Causa:** Plugin `simpod-json-datasource` não foi instalado no container Grafana
+
+**Solução:** Verifique se `GF_INSTALL_PLUGINS` no `docker-compose.full-stack.yml` inclui `simpod-json-datasource`. Reinicie o container:
+
+```bash
+docker compose -f docker-compose.full-stack.yml restart grafana
+docker compose -f docker-compose.full-stack.yml logs grafana | grep -i plugin
+```
+
+Você deve ver: `installed simpod-json-datasource successfully`
+
+---
+
+**Sintoma:** Painéis do JSON API datasource aparecem vazios (sem dados)
+
+**Causa:** `OPERATOR_API_KEY` ausente ou a chave não possui role OPERATOR
+
+**Solução:** 
+
+1. Verifique se a variável está definida:
+   ```bash
+   docker compose -f docker-compose.full-stack.yml exec grafana env | grep OPERATOR_API_KEY
+   ```
+
+2. Se ausente, adicione ao `.env` e reinicie o Grafana:
+   ```bash
+   echo "OPERATOR_API_KEY=sua_chave_aqui" >> .env
+   docker compose -f docker-compose.full-stack.yml restart grafana
+   ```
+
+3. Se presente, verifique o role da chave:
+   - No dashboard OpenWA, vá em **API Keys**
+   - Localize a chave usada
+   - Verifique se o campo **Role** mostra **OPERATOR**
+   - Se não, crie uma nova chave com role OPERATOR e atualize o `.env`
+
+---
+
+**Sintoma:** Painel Prometheus mostra "No Data"
+
+**Causa:** Prometheus não está scrapando o endpoint `/metrics` do OpenWA
+
+**Solução:** 
+
+1. Verifique se Prometheus está rodando:
+   ```bash
+   docker compose -f docker-compose.full-stack.yml ps prometheus
+   ```
+
+2. Acesse Prometheus em http://localhost:9090 e verifique targets:
+   - Navegue até **Status → Targets**
+   - Procure o job `openwa`
+   - Status deve ser **UP**
+
+3. Se status for **DOWN**, verifique a configuração de scrape em `config/prometheus/prometheus.yml`:
+   ```yaml
+   scrape_configs:
+     - job_name: 'openwa'
+       static_configs:
+         - targets:
+             - openwa:9090  # Porta correta do endpoint /metrics
+   ```
+
+4. Reinicie Prometheus após corrigir:
+   ```bash
+   docker compose -f docker-compose.full-stack.yml restart prometheus
+   ```
+
+---
+
 ## Referências
 
 - [Architecture](ARCHITECTURE.md)
