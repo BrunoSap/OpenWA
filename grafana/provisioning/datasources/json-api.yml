@@ -1,0 +1,14 @@
+apiVersion: 1
+
+datasources:
+  - name: OpenWA Analytics API
+    type: simpod-json-datasource
+    access: proxy
+    url: http://openwa-api:2785/api/analytics
+    isDefault: false
+    editable: true
+    jsonData:
+      httpMethod: GET
+      httpHeaderName1: Authorization
+    secureJsonData:
+      httpHeaderValue1: Bearer ${OPERATOR_API_KEY}

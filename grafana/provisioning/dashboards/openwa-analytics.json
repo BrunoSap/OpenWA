@@ -1,0 +1,40 @@
+{
+  "dashboard": {
+    "title": "OpenWA Analytics Overview",
+    "tags": ["openwa", "analytics"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Resolution Rate",
+        "type": "stat",
+        "datasource": "OpenWA Analytics API",
+        "targets": [
+          {
+            "target": "overview.kpis.resolutionRate",
+            "refId": "A"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "yellow", "value": 0.5 },
+                { "color": "green", "value": 0.7 }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
