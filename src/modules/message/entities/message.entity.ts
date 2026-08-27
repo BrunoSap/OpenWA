@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, ValueTransformer } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, DeleteDateColumn, Index, ValueTransformer } from 'typeorm';
 import { jsonColumnType } from '../../../common/utils/column-types';
 
 /**
@@ -37,6 +37,9 @@ export enum MessageStatus {
 // Composite index for the ack-driven status UPDATE (scoped by sessionId + waMessageId).
 // Without it every ack does a full table scan of a hot table.
 @Index('UQ_messages_sessionId_waMessageId', ['sessionId', 'waMessageId'], { unique: true })
+// Composite indexes for conversation memory recall queries (Phase 5)
+@Index('IDX_messages_userId_createdAt', ['userId', 'createdAt'])
+@Index('IDX_messages_conversationId_createdAt', ['conversationId', 'createdAt'])
 export class Message {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -121,4 +124,25 @@ export class Message {
   @CreateDateColumn()
   @Index('IDX_messages_createdAt')
   createdAt!: Date;
+
+  /**
+   * Phase 5: Long-term memory fields for conversation recall and retention.
+   * Populated on incoming message writes; queried by ConversationMemoryService.
+   */
+
+  /** User identifier for scoping recall queries; populated from author (group) or from (1:1). */
+  @Column({ nullable: true })
+  userId?: string;
+
+  /** Conversation grouping key: `${chatId}:${YYYY-MM-DD}` in UTC. Daily thread boundary. */
+  @Column({ nullable: true })
+  conversationId?: string;
+
+  /** Soft-delete timestamp. TypeORM's @DeleteDateColumn auto-excludes these rows from find() queries. */
+  @DeleteDateColumn()
+  deletedAt?: Date;
+
+  /** Retention expiry timestamp. Plan 03 will purge rows where expiresAt < NOW(). */
+  @Column({ type: 'datetime', nullable: true })
+  expiresAt?: Date;
 }
