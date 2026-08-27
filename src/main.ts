@@ -2,6 +2,7 @@
 // before any other module is evaluated, so modules that read process.env at import time (e.g. the
 // webhook Worker's @Processor connection) see the configured values rather than pre-dotenv defaults.
 import './config/load-env';
+import { initTelemetry } from './config/telemetry';
 import { NestFactory } from '@nestjs/core';
 import { INestApplication, ShutdownSignal } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -35,6 +36,9 @@ import { RedisIoAdapter } from './modules/events/redis-io.adapter';
 let appInstance: INestApplication | undefined;
 
 async function bootstrap() {
+  // Init telemetry FIRST (instruments http module before Nest loads)
+  const telemetry = initTelemetry();
+
   // Apply the operator-configured log verbosity (LOG_LEVEL) before anything logs. Unset/invalid → INFO.
   const requestedLevel = process.env.LOG_LEVEL?.trim().toLowerCase();
   if (requestedLevel && (Object.values(LogLevel) as string[]).includes(requestedLevel)) {
