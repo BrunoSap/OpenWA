@@ -1,0 +1,14 @@
+{
+  "imageFile": "product-photo.jpg",
+  "format": "jpeg",
+  "sizeBytes": 7975,
+  "expectedDescription": "Smartphone moderno com tela grande e câmera traseira tripla, posicionado sobre superfície branca",
+  "minSimilarity": 0.7,
+  "visualElements": [
+    "smartphone",
+    "tela",
+    "câmera",
+    "superfície branca",
+    "design moderno"
+  ]
+}
