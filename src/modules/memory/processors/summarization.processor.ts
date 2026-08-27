@@ -1,8 +1,8 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { QUEUE_NAMES } from '../queue-names';
-import { MemorySummarizationService } from '../../memory/services/memory-summarization.service';
+import { QUEUE_NAMES } from '../../queue/queue-names';
+import { MemorySummarizationService } from '../services/memory-summarization.service';
 
 /**
  * Phase 5 Plan 02: Summarization processor (MEM-03).

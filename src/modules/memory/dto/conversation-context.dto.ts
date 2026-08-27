@@ -8,7 +8,7 @@
  *
  * Consumed by n8n LLM workflows to enrich prompts with user conversation history.
  */
-export class ConversationContextDto {
+export interface ConversationContextDto {
   /** Summary text of older messages (beyond window), or null if total <= window. */
   summary: string | null;
 

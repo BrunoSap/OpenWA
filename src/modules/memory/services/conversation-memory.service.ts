@@ -113,4 +113,35 @@ export class ConversationMemoryService {
       totalMessages,
     };
   }
+
+  /**
+   * Get paginated conversation history for a user.
+   *
+   * @param userId - User identifier to fetch history for
+   * @param pagination - Skip and take for pagination
+   * @returns Messages array and total count
+   *
+   * @remarks
+   * - Scoped by userId (T-05-04: no cross-user rows)
+   * - Take is clamped to 100 in the controller (T-05-05)
+   * - Ordered by createdAt DESC (newest first)
+   * - Soft-deleted rows auto-excluded via @DeleteDateColumn
+   */
+  async getUserHistory(
+    userId: string,
+    pagination: { skip: number; take: number },
+  ): Promise<{ messages: Message[]; total: number }> {
+    if (!userId) {
+      return { messages: [], total: 0 };
+    }
+
+    const [messages, total] = await this.messageRepo.findAndCount({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+      skip: pagination.skip,
+      take: pagination.take,
+    });
+
+    return { messages, total };
+  }
 }
