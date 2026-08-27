@@ -394,6 +394,61 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 
 ---
 
+## Phase 9: Multi-Tenant SaaS 🎯
+
+**Goal:** Transformar OpenWA em plataforma SaaS multi-cliente — tenant isolation, billing, usage tracking, onboarding
+
+**Why this matters:** Habilita modelo de receita recorrente com múltiplos clientes em deployment único. Cada tenant tem dados isolados, API keys próprias, rate limiting dedicado, billing separado.
+
+**Deliverables:**
+
+### 9.1. Tenant Isolation (Wave 1)
+- Tenant entity + tenantId column em todas tabelas de dados
+- ClsModule (AsyncLocalStorage) propaga tenant context
+- Audit trail com tenantId attribution
+
+### 9.2. Query Scoping & Rate Limiting (Wave 2)
+- TenantScopedRepository base class auto-injeta tenantId em queries
+- API keys tenant-scoped
+- Redis rate limiting per-tenant (sliding window)
+
+### 9.3. Billing Integration (Wave 3)
+- Stripe SDK + usage metering (billing meter events)
+- Webhook handler (subscription.updated, invoice.payment_failed)
+- UsageService tracks messages/tokens/cost per tenant
+
+### 9.4. Onboarding Automation (Wave 4)
+- Self-service signup (POST /api/tenants/signup)
+- TenantProvisioningService (transactional: tenant + API key + session)
+- React OnboardingWizard (4 steps: welcome, whatsapp, test-message, complete)
+
+### 9.5. RLS Safety Net (Wave 5)
+- PostgreSQL RLS policies (production-only defense-in-depth)
+- RlsInterceptor sets app.tenant_id session variable
+- Cross-tenant admin audit trail
+
+**Success Criteria:**
+
+- ✅ 100+ tenants on single deployment without cross-contamination
+- ✅ Tenant data fully isolated (verified via E2E tests + RLS)
+- ✅ Per-tenant rate limiting working (Redis sliding window)
+- ✅ Billing metrics accurate (Stripe meter events)
+- ✅ Onboarding completes in <10 min (self-service)
+
+**Dependencies:** Phase 8 (horizontal scaling provides multi-replica infrastructure)
+
+**Effort:** ~7-10 dias (5 plans, 5 waves)
+
+**Plans:** 5 plans
+
+- [ ] 09-01-PLAN.md — Tracer: tenantId migration + ClsModule context + single-tenant E2E (Wave 1)
+- [ ] 09-02-PLAN.md — Expansion: TenantScopedRepository + API key scoping + per-tenant rate limiting (Wave 2)
+- [ ] 09-03-PLAN.md — Billing: Stripe integration + usage metering + webhook handler (Wave 3)
+- [ ] 09-04-PLAN.md — Onboarding: signup endpoint + provisioning + React wizard (Wave 4)
+- [ ] 09-05-PLAN.md — RLS: PostgreSQL RLS policies + admin bypass + audit trail (Wave 5)
+
+---
+
 ## Backlog & Future Phases
 
 Features identificadas na reanálise mas fora do escopo atual:
@@ -413,9 +468,9 @@ Features identificadas na reanálise mas fora do escopo atual:
 
 ### Advanced Features
 
-- Multi-tenant support
-- API pública com rate limiting por tenant
+- API pública externa para desenvolvedores
 - Multi-region deployment (disaster recovery cross-region)
+- Advanced analytics (ML-powered insights)
 
 ---
 
