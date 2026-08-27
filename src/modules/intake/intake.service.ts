@@ -1,9 +1,11 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { IntakeLead } from './entities/intake-lead.entity';
 import { advanceIntake, IntakeFlowState, IntakeStep } from './intake-flow';
 import { postWebhookPayload } from '../webhook/utils/deliver-once';
+import { ABTestingService } from '../analytics/services/ab-testing.service';
 import { createLogger } from '../../common/services/logger.service';
 
 /** How many raw message texts case_data.messages retains — bounds unbounded growth (T-02-03). */
@@ -32,6 +34,8 @@ export class IntakeService {
   constructor(
     @InjectRepository(IntakeLead, 'data')
     private readonly leads: Repository<IntakeLead>,
+    private readonly eventEmitter: EventEmitter2,
+    private readonly abTestingService: ABTestingService,
   ) {}
 
   /**
@@ -51,6 +55,22 @@ export class IntakeService {
         caseData: { messages: [] },
         intakeStatus: 'in_progress',
       });
+
+    // Assign A/B test variant for this user (consistent hashing ensures same variant each time)
+    const userId = input.chatId; // Use chatId as userId for intake flow
+    const variantId = this.abTestingService.assignVariant(userId, 'intake-flow-v2', 2);
+
+    // Emit 'initiated' stage on first message
+    if (!existing) {
+      this.eventEmitter.emit('funnel.stage_entered', {
+        sessionId: input.sessionId,
+        userId,
+        conversationId: input.chatId,
+        stage: 'initiated',
+        variantId,
+        timestamp: new Date(),
+      });
+    }
 
     // Build the flow state from the lead's collected fields. caseType 'unknown'/'' from the tracer
     // reads as "not yet collected" so the demand step still runs.
@@ -79,9 +99,31 @@ export class IntakeService {
     const messages = [...prior, input.text].slice(-MAX_MESSAGE_HISTORY);
     lead.caseData = { ...lead.caseData, messages };
 
-    if (completed && lead.intakeStatus !== 'completed') {
+    // Emit funnel stage events based on flow progression
+    const wasCompleted = lead.intakeStatus === 'completed';
+    if (completed && !wasCompleted) {
       lead.intakeStatus = 'completed';
       lead.intakeCompletedAt = new Date().toISOString();
+
+      // Emit 'data_collected' stage when all fields are complete
+      this.eventEmitter.emit('funnel.stage_entered', {
+        sessionId: input.sessionId,
+        userId,
+        conversationId: input.chatId,
+        stage: 'data_collected',
+        variantId,
+        timestamp: new Date(),
+      });
+    } else if (step === 'urgencyLevel' && nextState.urgencyLevel && !state.urgencyLevel) {
+      // Emit 'qualified' stage after qualification questions answered
+      this.eventEmitter.emit('funnel.stage_entered', {
+        sessionId: input.sessionId,
+        userId,
+        conversationId: input.chatId,
+        stage: 'qualified',
+        variantId,
+        timestamp: new Date(),
+      });
     }
 
     const saved = await this.leads.save(lead);
@@ -150,6 +192,19 @@ export class IntakeService {
     try {
       const { status } = await postWebhookPayload(target.url, JSON.stringify(payload), headers, 10000);
       this.logger.debug('Exported intake lead', { chatId, leadId: lead.id, status });
+
+      // Emit 'exported' stage when data successfully exported
+      const userId = chatId;
+      const variantId = this.abTestingService.assignVariant(userId, 'intake-flow-v2', 2);
+      this.eventEmitter.emit('funnel.stage_entered', {
+        sessionId: 'export', // No session context in export method
+        userId,
+        conversationId: chatId,
+        stage: 'exported',
+        variantId,
+        timestamp: new Date(),
+      });
+
       return { delivered: true, status };
     } catch (error) {
       // A non-2xx or a network/SSRF error: report as not delivered without leaking the destination.
