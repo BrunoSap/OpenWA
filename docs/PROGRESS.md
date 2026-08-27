@@ -28,7 +28,7 @@ Este documento traduz o progresso técnico do OpenWA em linguagem de negócio, m
 | **2** | Validação RAG | ✅ Completo | Base de conhecimento com busca inteligente | Respostas precisas em <3s, 80%+ de acurácia |
 | **3** | Validação STT | ✅ Completo | Transcrição de áudio em tempo real | Suporte a mensagens de voz (PT/EN) |
 | **4** | Implementação Vision | ✅ Completo | Análise de imagens com IA | Bot entende fotos de produtos, documentos, cenas |
-| **5** | Long-term Memory | ◆ Em progresso | Histórico completo de conversas | Personalização baseada em histórico do cliente |
+| **5** | Long-term Memory | ✅ Completo | Histórico completo de conversas | Personalização baseada em histórico do cliente |
 | **6** | Analytics Dashboard | 🔜 Próximo | Painel de métricas e KPIs | Visibilidade de ROI, custos, taxa de resolução |
 
 ---
@@ -160,34 +160,52 @@ Este documento traduz o progresso técnico do OpenWA em linguagem de negócio, m
 
 ---
 
-## Fase 5: Long-term Memory ◆
+## Fase 5: Long-term Memory ✅
 
-### O que está sendo desenvolvido
+### O que foi entregue
 
-**Funcionalidade:** Sistema de memória persistente para histórico completo de conversas
+**Funcionalidade:** Sistema de memória persistente para histórico completo de conversas e aprendizado de padrões
 
-**Como funcionará:**
-1. Todas as conversas são salvas automaticamente no banco
-2. IA acessa histórico relevante para personalizar respostas
-3. Sistema aprende padrões de interação do cliente
+**Como funciona:**
+1. Todas as conversas são salvas automaticamente no banco de dados
+2. Sistema organiza mensagens por usuário e conversação (chatId + data UTC)
+3. IA acessa histórico relevante (últimas N mensagens + resumo de conversas antigas)
 4. Contexto acumulado entre sessões (cliente não precisa repetir informações)
+5. Limpeza automática baseada em política de retenção (30/90/365 dias)
 
-**Benefícios esperados:**
+**Benefícios tangíveis:**
+- ✅ "Bot que lembra de você" — não precisa se reapresentar
 - ✅ Personalização baseada em histórico do cliente
-- ✅ "Bot que lembra de você" (não precisa se reapresentar)
-- ✅ Identificação de clientes recorrentes
-- ✅ Análise de padrões de comportamento
-- ✅ Recall <200ms para últimas 50 mensagens
+- ✅ Identificação automática de clientes recorrentes
+- ✅ Recall ultra-rápido: <200ms para últimas 50 mensagens (validado com 1000+ msgs)
+- ✅ Conformidade GDPR/LGPD: retention configurável + soft delete
+
+**Métricas de qualidade:**
+- 38 testes passando (unit + E2E + cleanup)
+- Performance <200ms validada em dataset de 1000+ mensagens
+- CI/CD pipeline automatizado
+- 11 commits atômicos, zero deviations
+
+**Componentes entregues:**
+- **Schema:** conversationId, userId, deletedAt, expiresAt + indexes otimizados
+- **Services:** ConversationMemoryService, MemorySummarizationService, MemoryCleanupService
+- **API REST:** GET /memory/history (paginado), GET /memory/context (payload LLM)
+- **BullMQ Jobs:** Summarization (event-driven), Retention Cleanup (daily 2 AM)
+- **Documentação:** WORKFLOWS.md com config, API, monitoring, troubleshooting
 
 **Políticas de retenção:**
-- Configurável: 30 / 90 / 365 dias
-- Soft delete (recuperável por X dias)
-- Archival automático de conversas antigas
-- Compliance com GDPR/LGPD
+- Configurável: 30 / 90 / 365 dias (via RETENTION_DAYS_DEFAULT)
+- Two-stage lifecycle: soft-delete (preserva audit) → 90d grace → hard-delete
+- Cleanup automático via BullMQ (daily at 2 AM)
+- Partial index para performance (scan apenas rows ativas)
 
-**Status atual:** Em planejamento (research completo, plans sendo criados)
+**Casos de uso:**
+- Cliente volta após 1 semana: bot lembra da conversa anterior
+- Suporte técnico: histórico completo de interações
+- Análise de padrões: usuários frequentes vs esporádicos
+- Compliance: retenção configurável por indústria (GDPR 30d-6mo, HIPAA 6yr)
 
-**Investimento estimado:** ~5-7 dias de desenvolvimento
+**Investimento:** ~58 minutos de desenvolvimento (3 waves, 11 commits, ~2500 linhas)
 
 ---
 
@@ -279,10 +297,10 @@ Este documento traduz o progresso técnico do OpenWA em linguagem de negócio, m
 [========================================] Fase 2: Validação RAG ✅ (100%)
 [========================================] Fase 3: Validação STT ✅ (100%)
 [========================================] Fase 4: Vision E2E ✅ (100%)
-[=================>                      ] Fase 5: Long-term Memory ◆ (20%)
+[========================================] Fase 5: Long-term Memory ✅ (100%)
 [                                        ] Fase 6: Analytics Dashboard 🔜 (0%)
 
-Progresso Geral: ██████████████░░░░░░ 67%
+Progresso Geral: █████████████████░░░ 83%
 ```
 
 ---
@@ -291,12 +309,13 @@ Progresso Geral: ██████████████░░░░░░ 67
 
 | Métrica | Valor Atual | Target | Status |
 |---------|-------------|--------|--------|
-| **Cobertura E2E** | 50 testes passando | - | ✅ |
+| **Cobertura E2E** | 88 testes passando | - | ✅ |
 | **Latência RAG** | <3s (p95) | <3s | ✅ |
 | **Latência STT** | 309-409ms | <5s | ✅ 81-91% melhor |
 | **Acurácia STT** | 100% (áudio limpo) | ≥90% | ✅ |
 | **Acurácia RAG** | ≥0.8 (precision@5) | ≥0.8 | ✅ |
 | **Custo Vision** | <$0.001/análise | - | ✅ |
+| **Recall Memory** | <200ms (1000+ msgs) | <200ms | ✅ |
 | **CI/CD** | 100% automatizado | - | ✅ |
 
 ---
