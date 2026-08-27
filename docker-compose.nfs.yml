@@ -1,0 +1,20 @@
+# NFS Shared Storage Override
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.nfs.yml --profile scale-3 up -d
+
+volumes:
+  openwa-data:
+    name: openwa_openwa-data
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=${NFS_SERVER:-nfs-server.local},rw,nfsvers=4,soft,timeo=600,retrans=2
+      device: ":${NFS_EXPORT_PATH:-/exports/openwa-data}"
+
+services:
+  openwa-api-scaled:
+    environment:
+      # WhatsApp profiles on shared NFS
+      SESSION_DATA_PATH: /app/data/sessions
+      BAILEYS_AUTH_DIR: /app/data/baileys-auth
+    volumes:
+      - openwa-data:/app/data

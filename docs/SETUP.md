@@ -572,6 +572,97 @@ Detalhes completos: ver `archive/FIX_PLUGIN_404.md`
 
 ---
 
+## Horizontal Scaling
+
+OpenWA suporta múltiplas replicas da API para alta disponibilidade e throughput.
+
+### Prerequisites
+
+- **Shared Storage**: NFS server com export configurado (ReadWriteMany access)
+- **Load Balancer**: nginx incluído no docker-compose (sticky sessions via ip_hash)
+- **Redis**: Obrigatório para WebSocket fan-out e BullMQ distributed workers
+
+### NFS Server Setup (Ubuntu/Debian)
+
+No servidor NFS:
+
+```bash
+# Install NFS server
+sudo apt update && sudo apt install -y nfs-kernel-server
+
+# Create export directory
+sudo mkdir -p /exports/openwa-data
+sudo chown nobody:nogroup /exports/openwa-data
+sudo chmod 755 /exports/openwa-data
+
+# Configure export
+echo "/exports/openwa-data *(rw,sync,no_subtree_check,no_root_squash)" | sudo tee -a /etc/exports
+
+# Apply and restart
+sudo exportfs -ra
+sudo systemctl restart nfs-kernel-server
+```
+
+### Deploy with 3 Replicas
+
+```bash
+# Set NFS server address
+export NFS_SERVER=192.168.1.100  # Your NFS server IP
+export NFS_EXPORT_PATH=/exports/openwa-data
+export OPENWA_REPLICAS=3
+
+# Start with NFS storage
+docker-compose -f docker-compose.yml -f docker-compose.nfs.yml --profile scale-3 up -d
+
+# Verify 3 replicas running
+docker ps --filter label=com.openwa.replica=true
+
+# Test via load balancer
+curl http://localhost:2785/api/health/ready
+```
+
+### Session Affinity
+
+Sticky sessions são enforced via nginx `ip_hash` — clientes do mesmo IP sempre vão para a mesma replica. Isso mantém engine state in-process consistente.
+
+**Important:** Se cliente muda de IP (mobile network switch), sessão WhatsApp é roteada para replica diferente. O profile compartilhado (NFS) permite re-autenticar sem QR code.
+
+### Distributed State
+
+- **BullMQ jobs**: Processados por qualquer replica (queue compartilhada no Redis)
+- **WebSocket broadcasts**: Redis pub/sub distribui eventos para clientes em todas replicas
+- **WhatsApp profiles**: NFS compartilhado — session persiste cross-replica
+
+### Monitoring
+
+```bash
+# Check replica health individually
+docker exec openwa-api-scaled-1 curl -f http://localhost:2785/api/health/ready
+docker exec openwa-api-scaled-2 curl -f http://localhost:2785/api/health/ready
+docker exec openwa-api-scaled-3 curl -f http://localhost:2785/api/health/ready
+
+# Load distribution test
+for i in {1..100}; do curl -s http://localhost:2785/api/health/live -I | grep X-Replica; done | sort | uniq -c
+```
+
+### Troubleshooting
+
+**"Stale file handle" errors:**
+- NFS mount option `soft` permite retry em caso de network blip
+- `timeo=600` (60s retry timeout) e `retrans=2` são conservadores
+- Se persistir, verificar NFS server logs: `sudo journalctl -u nfs-kernel-server`
+
+**Replica não inicia:**
+- Verificar NFS mount: `docker exec openwa-api-scaled-1 df -h | grep /app/data`
+- Verificar permissões: `docker exec openwa-api-scaled-1 ls -la /app/data`
+- NFS export deve ter `no_root_squash` para container root poder escrever
+
+**Session não persiste após failover:**
+- Verificar profile path: SESSION_DATA_PATH e BAILEYS_AUTH_DIR apontam para /app/data
+- Verificar volume mount: docker-compose.nfs.yml sobrescreve volume corretamente
+
+---
+
 ## Grafana Analytics Dashboard
 
 Dashboard de visualização de métricas operacionais consumindo os endpoints de analytics (Phase 6) via Grafana auto-provisionado.
