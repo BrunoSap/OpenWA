@@ -156,11 +156,11 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 
 **Effort:** ~3-4 dias (workflow + integration + testes + docs)
 
-**Plans:** 1/3 plans executed (3 waves)
+**Plans:** 3/3 plans executed (3 waves)
 
 - [x] 04-01-PLAN.md — Tracer E2E: imagem foto de produto → validação de formato → GPT-4 Vision (gpt-4o-mini) → descrição → LLM + custo logado (Wave 1)
-- [ ] 04-02-PLAN.md — Expansão: casos documento/OCR + cena, acurácia via LLM-as-judge, fallback (Wave 2)
-- [ ] 04-03-PLAN.md — Workflow n8n WhatsApp-Vision-Analysis.json + shape test + CI/CD GitHub Actions + docs de custo em GUIDES.md (Wave 3)
+- [x] 04-02-PLAN.md — Expansão: casos documento/OCR + cena, acurácia via LLM-as-judge, fallback (Wave 2)
+- [x] 04-03-PLAN.md — Workflow n8n WhatsApp-Vision-Analysis.json + shape test + CI/CD GitHub Actions + docs de custo em GUIDES.md (Wave 3)
 
 ---
 
