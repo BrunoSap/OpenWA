@@ -232,11 +232,20 @@ Construído com:
 
 ## ⭐ Roadmap
 
-- [ ] Long-term memory persistente
-- [ ] Integração telefonia (VibeVoice)
-- [ ] Dashboard analytics
+### Completo ✅
+- [x] Bot de Intake E2E (Phase 1)
+- [x] Validação RAG + Knowledge Base (Phase 2)
+- [x] Validação Áudio STT (Phase 3)
+- [x] Implementação Vision (Phase 4)
+- [x] Long-term memory persistente (Phase 5)
+- [x] Analytics Dashboard backend (Phase 6)
+
+### Próximo 🎯
+- [ ] Dashboard UI visualization (Grafana/React)
+- [ ] Horizontal Scaling & HA
 - [ ] Multi-tenant support
-- [ ] API pública
+- [ ] Integração telefonia (VibeVoice)
+- [ ] Advanced Analytics (intent classification, funnel)
 
 ---
 
