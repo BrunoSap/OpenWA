@@ -80,6 +80,13 @@ export class Session {
   @Column({ type: dateColumnType(), nullable: true, transformer: DateTransformer })
   leaseExpiresAt!: Date | null;
 
+  /**
+   * Multi-tenant SaaS: which tenant owns this session
+   * Nullable for backward compatibility during migration
+   */
+  @Column({ type: 'uuid', nullable: true })
+  tenantId!: string | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 

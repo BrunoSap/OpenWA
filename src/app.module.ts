@@ -50,6 +50,8 @@ import { MemoryModule } from './modules/memory/memory.module';
 import { SearchModule } from './modules/search/search.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { LLMModule } from './modules/llm/llm.module';
+import { TenantContextModule } from './common/tenant/tenant-context.module';
+import { TenantModule } from './modules/tenant/tenant.module';
 import { SqlitePermissionsBoot } from './database/sqlite-file-permissions';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
@@ -149,6 +151,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
           entities: [
             __dirname + '/modules/auth/**/*.entity{.ts,.js}',
             __dirname + '/modules/audit/**/*.entity{.ts,.js}',
+            __dirname + '/modules/tenant/**/*.entity{.ts,.js}',
           ],
           // Dedicated migrations dir for the main connection only (must NOT run the
           // data-connection migrations, which target session/webhook/message tables).
@@ -300,6 +303,12 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     AuditModule,
     EventsModule, // WebSocket real-time events
     ...queueModules,
+
+    // Multi-tenant infrastructure (Phase 9)
+    // TenantContextModule must be imported BEFORE feature modules to ensure CLS context exists
+    TenantContextModule, // ClsModule for tenant context propagation via AsyncLocalStorage
+    TenantModule, // Tenant management
+
     AuthModule,
     EngineModule,
     SessionModule,

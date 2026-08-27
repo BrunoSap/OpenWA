@@ -48,6 +48,13 @@ export class ApiKey {
   @Column({ type: 'int', default: 0 })
   usageCount!: number;
 
+  /**
+   * Multi-tenant SaaS: which tenant owns this API key
+   * Nullable for backward compatibility during migration
+   */
+  @Column({ type: 'uuid', nullable: true })
+  tenantId!: string | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 
