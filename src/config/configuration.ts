@@ -516,4 +516,12 @@ export default () => ({
       endpoint: process.env.S3_ENDPOINT,
     },
   },
+
+  // Long-term memory retention (Phase 5)
+  memory: {
+    // Default retention window in days (30/90/365 supported). Messages expire at createdAt +
+    // retentionDaysDefault; the cleanup job soft-deletes expired rows, then hard-deletes old
+    // soft-deleted rows after a grace period (MEM-05).
+    retentionDaysDefault: parseInt(process.env.RETENTION_DAYS_DEFAULT || '90', 10),
+  },
 });

@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { In, Repository } from 'typeorm';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { MessageService, spendInlineMediaBudget } from './message.service';
@@ -82,6 +83,15 @@ describe('MessageService', () => {
             assertSendAllowed: jest.fn().mockResolvedValue(undefined),
             recordSendFailure: jest.fn(),
             recordSendSuccess: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string, defaultValue?: unknown) => {
+              if (key === 'memory.retentionDaysDefault') return 90;
+              return defaultValue;
+            }),
           },
         },
         { provide: getRepositoryToken(Message, 'data'), useValue: repository },

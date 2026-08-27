@@ -40,6 +40,10 @@ export enum MessageStatus {
 // Composite indexes for conversation memory recall queries (Phase 5)
 @Index('IDX_messages_userId_createdAt', ['userId', 'createdAt'])
 @Index('IDX_messages_conversationId_createdAt', ['conversationId', 'createdAt'])
+// Partial index for retention cleanup scan (Phase 5 Plan 03): backs the `WHERE expiresAt < NOW()
+// AND deletedAt IS NULL` predicate. Only active (non-soft-deleted) rows match the cleanup job, so
+// the WHERE clause keeps the index to rows that can ever be cleaned (MEM-05, T-05-08).
+@Index('IDX_messages_active_createdAt', ['createdAt'], { where: 'deletedAt IS NULL' })
 export class Message {
   @PrimaryGeneratedColumn('uuid')
   id!: string;

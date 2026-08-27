@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { In, Repository } from 'typeorm';
 import { EngineRegistry } from '../../engine/engine-registry.service';
 import { MessageProjector } from '../session/message-projector.service';
@@ -124,6 +125,7 @@ export class MessageService {
     // the one failure mode this feature must not have. The service itself no-ops when disabled.
     private readonly pacing: SendPacingService,
     private readonly sender: MessageSendService,
+    private readonly configService: ConfigService,
     // Optional so the existing standalone constructions keep working; absent (like a disabled
     // archive) means the media read endpoint serves only the inline row copy, never archived files.
     @Optional()
@@ -313,13 +315,17 @@ export class MessageService {
     // conversationId: daily thread grouping key `${chatId}:${YYYY-MM-DD}` in UTC
     const conversationId = data.chatId ? `${data.chatId}:${new Date().toISOString().slice(0, 10)}` : undefined;
 
+    // Phase 5 Plan 03: Set expiresAt at write time from RETENTION_DAYS_DEFAULT (MEM-05)
+    const retentionDays = this.configService.get<number>('memory.retentionDaysDefault', 90);
+    const expiresAt = new Date(Date.now() + retentionDays * 86400000);
+
     const message = this.messageRepository.create({
       ...data,
       sessionId,
       direction: MessageDirection.INCOMING,
       userId,
       conversationId,
-      // expiresAt and deletedAt remain unset here (Plan 03 owns retention)
+      expiresAt,
     });
     return this.messageRepository.save(message);
   }
