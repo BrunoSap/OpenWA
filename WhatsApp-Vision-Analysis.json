@@ -1,0 +1,332 @@
+{
+  "name": "WhatsApp Vision Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-vision",
+        "options": {
+          "responseCode": {
+            "values": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        240,
+        300
+      ],
+      "id": "webhook-vision",
+      "name": "Webhook Vision",
+      "webhookId": "d4e4bb1g-60c6-5275-9eb1-2961bc1c94d6"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.body.mediaUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "arraybuffer"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        300
+      ],
+      "id": "download-image",
+      "name": "1. Download Image"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === NODE 2: CONVERT TO BASE64 ===\n\nconst body = $item(0).$node[\"Webhook Vision\"].json.body;\nconst binaryData = $input.first().binary.data;\n\nif (!binaryData) {\n  throw new Error('No image data received');\n}\n\n// Get mime type from binary data or default to jpeg\nconst mimeType = binaryData.mimeType || 'image/jpeg';\n\n// Convert buffer to base64\nconst base64 = binaryData.data.toString('base64');\n\n// Create data URL for Vision API\nconst dataUrl = `data:${mimeType};base64,${base64}`;\n\n// Extract metadata\nconst chatId = body.chatId;\nconst messageId = body.messageId;\nconst sessionId = body.sessionId;\nconst caption = body.caption || '';\n\nconsole.log('[VISION] Image converted:', {\n  chatId,\n  messageId,\n  mimeType,\n  size: base64.length,\n  hasCaption: caption.length > 0\n});\n\nreturn {\n  json: {\n    imageDataUrl: dataUrl,\n    chatId: chatId,\n    messageId: messageId,\n    sessionId: sessionId,\n    caption: caption,\n    mimeType: mimeType,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        300
+      ],
+      "id": "convert-base64",
+      "name": "2. Convert to Base64"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Você é um assistente de análise de imagem. Descreva a imagem de forma objetiva e detalhada. Se houver texto visível, transcreva-o. Se for documento, extraia as informações principais."
+            },
+            {
+              "message": "Analise esta imagem:\n={{ $json.caption ? 'Legenda do cliente: ' + $json.caption + '\\n\\n' : '' }}Descreva o que você vê.",
+              "messageType": "user",
+              "imageUrls": "={{ $json.imageDataUrl }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        840,
+        300
+      ],
+      "id": "vision-analysis",
+      "name": "3. Vision Analysis"
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0,
+          "maxTokens": 500
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        840,
+        480
+      ],
+      "id": "openai-vision-model",
+      "name": "OpenAI Vision Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "PLACEHOLDER_VISION_CRED",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === NODE 4: BUILD CONTEXTUALIZED PROMPT ===\n\nconst visionResult = $input.first().json.text;\nconst prevData = $item(\"0\").$node[\"2. Convert to Base64\"].json;\n\n// System prompt for contextualized response\nconst systemPrompt = `Você é assistente virtual do escritório Dr. Dênis Bernardo.\n\n⚠️ IMPORTANTE: Cliente enviou uma IMAGEM (não texto digitado).\n- A descrição abaixo é análise de Vision AI da imagem\n- Responda de forma natural sobre o que o cliente mostrou\n- Confirme que você viu a imagem\n\nREGRAS:\n1. Tom: Informal, empático, como vizinho de confiança\n2. Linguagem: Português simples, máx 2-3 frases\n3. Sempre confirme que viu a imagem: \"Vi sua foto! ...\"\n4. Se cliente enviou legenda, considere no contexto\n\n💬 EXEMPLO:\nCliente: [foto de documento] + legenda \"Preciso tirar dúvida sobre isso\"\nVocê: \"Vi o documento! Posso te ajudar. Do que se trata?\"\n\nNUNCA invente informações.\nSempre termine: \"Precisa de mais alguma coisa?\"`;\n\n// User prompt with Vision analysis\nconst userPrompt = `📷 ANÁLISE DA IMAGEM:\n${visionResult}\n\n${prevData.caption ? `LEGENDA DO CLIENTE: \"${prevData.caption}\"\\n\\n` : ''}Responda ao cliente confirmando que viu a imagem e ajude conforme necessário.`;\n\nreturn {\n  json: {\n    systemPrompt: systemPrompt,\n    userPrompt: userPrompt,\n    chatId: prevData.chatId,\n    messageId: prevData.messageId,\n    visionAnalysis: visionResult\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        300
+      ],
+      "id": "build-contextualized-prompt",
+      "name": "4. Build Contextualized Prompt"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "={{ $json.systemPrompt }}"
+            },
+            {
+              "message": "={{ $json.userPrompt }}",
+              "messageType": "user"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1240,
+        300
+      ],
+      "id": "llm-contextualized",
+      "name": "5. LLM Contextualized"
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        480
+      ],
+      "id": "openai-llm-model",
+      "name": "OpenAI LLM Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "PLACEHOLDER_LLM_CRED",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === NODE 6: CLEAN RESPONSE ===\n\nlet text = $input.first().json.text;\n\n// Remove thinking tags if present\ntext = text.replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim();\n\n// Get chat data\nconst prevData = $item(\"0\").$node[\"4. Build Contextualized Prompt\"].json;\n\nreturn {\n  json: {\n    chatId: prevData.chatId,\n    text: text,\n    messageId: prevData.messageId,\n    wasImage: true\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        300
+      ],
+      "id": "clean-response",
+      "name": "6. Clean Response"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BASE_URL }}/api/sessions/{{ $env.SESSION_ID }}/messages/send-text",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1640,
+        300
+      ],
+      "id": "send-whatsapp-reply",
+      "name": "7. Send WhatsApp Reply",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_AUTH_CRED",
+          "name": "WhatsApp API Auth"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Vision": {
+      "main": [
+        [
+          {
+            "node": "1. Download Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1. Download Image": {
+      "main": [
+        [
+          {
+            "node": "2. Convert to Base64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Convert to Base64": {
+      "main": [
+        [
+          {
+            "node": "3. Vision Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Vision Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "3. Vision Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Vision Analysis": {
+      "main": [
+        [
+          {
+            "node": "4. Build Contextualized Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Build Contextualized Prompt": {
+      "main": [
+        [
+          {
+            "node": "5. LLM Contextualized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI LLM Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "5. LLM Contextualized",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. LLM Contextualized": {
+      "main": [
+        [
+          {
+            "node": "6. Clean Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. Clean Response": {
+      "main": [
+        [
+          {
+            "node": "7. Send WhatsApp Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "VISION_WORKFLOW_V1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "PLACEHOLDER_INSTANCE"
+  },
+  "tags": []
+}
