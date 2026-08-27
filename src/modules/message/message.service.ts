@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { In, Repository } from 'typeorm';
 import { EngineRegistry } from '../../engine/engine-registry.service';
 import { MessageProjector } from '../session/message-projector.service';
@@ -126,6 +127,7 @@ export class MessageService {
     private readonly pacing: SendPacingService,
     private readonly sender: MessageSendService,
     private readonly configService: ConfigService,
+    private readonly eventEmitter: EventEmitter2,
     // Optional so the existing standalone constructions keep working; absent (like a disabled
     // archive) means the media read endpoint serves only the inline row copy, never archived files.
     @Optional()
@@ -309,6 +311,8 @@ export class MessageService {
    * Phase 5: Populates memory fields (userId, conversationId) for long-term recall.
    */
   async saveIncomingMessage(sessionId: string, data: Partial<Message>): Promise<Message> {
+    const startTime = Date.now();
+
     // Phase 5: Populate memory fields for conversation recall (MEM-01)
     // userId: sender identity (author for group messages, from for 1:1)
     const userId = data.author ?? data.from;
@@ -327,7 +331,20 @@ export class MessageService {
       conversationId,
       expiresAt,
     });
-    return this.messageRepository.save(message);
+    const saved = await this.messageRepository.save(message);
+
+    // Phase 6: Emit message.processed event for analytics collection
+    const latencyMs = Date.now() - startTime;
+    this.eventEmitter.emit('message.processed', {
+      sessionId,
+      chatId: saved.chatId,
+      userId: userId ?? '',
+      conversationId: conversationId ?? '',
+      latencyMs,
+      messageType: saved.type,
+    });
+
+    return saved;
   }
 
   // ========== Phase 3: Reactions ==========

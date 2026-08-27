@@ -144,6 +144,11 @@ export default () => ({
     enabled: process.env.CACHE_ENABLED === 'true',
   },
 
+  // Analytics configuration (Phase 6)
+  analytics: {
+    enabled: process.env.ANALYTICS_ENABLED === 'true',
+  },
+
   // Main Database configuration (always SQLite for boot config)
   database: {
     type: 'sqlite' as const,

@@ -48,6 +48,7 @@ import { IntegrationModule } from './modules/integration/integration.module';
 import { IntakeModule } from './modules/intake/intake.module';
 import { MemoryModule } from './modules/memory/memory.module';
 import { SearchModule } from './modules/search/search.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { SqlitePermissionsBoot } from './database/sqlite-file-permissions';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
@@ -327,6 +328,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     IntegrationModule, // Integration Fabric: @Public provider-webhook ingress + fast-ack pipeline
     IntakeModule, // Phase 1: Bot de Intake — ingest/read leads on the 'data' connection
     MemoryModule, // Phase 5: Long-term memory — conversation recall and retention
+    AnalyticsModule, // Phase 6: Analytics — event-driven metrics collection
     ...searchModules, // Global message search (opt-out via SEARCH_ENABLED=false; default ON)
     ...mcpModules, // MCP Streamable-HTTP server (opt-in via MCP_ENABLED=true)
     ...serveStaticModules, // Bundled dashboard SPA (production single-port setup)
