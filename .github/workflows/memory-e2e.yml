@@ -1,0 +1,112 @@
+name: Memory E2E Tests
+# Workflow validation: 2026-08-27 (Phase 5 Plan 03)
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/modules/memory/**'
+      - 'src/modules/message/entities/message.entity.ts'
+      - 'src/modules/message/message.service.ts'
+      - 'src/config/configuration.ts'
+      - 'test/memory-*.e2e-spec.ts'
+      - 'src/database/migrations/*MessageRetentionIndex.ts'
+      - 'src/database/migrations/*ConversationMemoryFields.ts'
+      - '.github/workflows/memory-e2e.yml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '22'
+
+permissions:
+  contents: read
+
+jobs:
+  memory-e2e:
+    name: Memory E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: openwa
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: openwa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U openwa"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wait for PostgreSQL
+        run: |
+          until pg_isready -h localhost -p 5432 -U openwa; do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+
+      - name: Run database migrations
+        run: npm run typeorm -- migration:run -d src/database/data-source.ts
+        env:
+          NODE_ENV: test
+          DATABASE_TYPE: postgres
+          DATABASE_HOST: localhost
+          DATABASE_PORT: 5432
+          DATABASE_USERNAME: openwa
+          DATABASE_PASSWORD: test_password
+          DATABASE_NAME: openwa
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+
+      - name: Run Memory E2E tests
+        run: npm run test:e2e:memory
+        env:
+          NODE_ENV: test
+          DATABASE_TYPE: postgres
+          DATABASE_HOST: localhost
+          DATABASE_PORT: 5432
+          DATABASE_USERNAME: openwa
+          DATABASE_PASSWORD: test_password
+          DATABASE_NAME: openwa
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          RETENTION_DAYS_DEFAULT: 90
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
+        with:
+          name: memory-test-results
+          path: |
+            test-results/
+            coverage/
+          retention-days: 7

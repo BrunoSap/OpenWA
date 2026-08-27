@@ -540,6 +540,196 @@ n8n:
 
 ---
 
+## Long-Term Memory (Phase 5)
+
+OpenWA agora possui memória de longo prazo para conversas, permitindo que o bot mantenha contexto entre sessões e ao longo do tempo.
+
+### Funcionalidades
+
+**Persistence (MEM-01):**
+- Mensagens incoming são automaticamente indexadas por `userId` e `conversationId`
+- `userId`: sender identity (author para grupos, from para 1:1)
+- `conversationId`: thread diário no formato `${chatId}:${YYYY-MM-DD}` (UTC)
+
+**Recall (MEM-02):**
+- API REST para recuperar histórico de mensagens por `userId`
+- Performance: <200ms para 50 mensagens em datasets de 1000+ mensagens
+- Ordenação: newest-first (mensagens mais recentes primeiro)
+
+**Retention (MEM-05):**
+- Janela de retenção configurável via `RETENTION_DAYS_DEFAULT` (padrão 90 dias)
+- Suporta políticas de 30/90/365 dias
+- Lifecycle de duas etapas:
+  1. **Soft-delete**: mensagens expiradas (expiresAt < now) são marcadas como deletadas
+  2. **Hard-delete**: mensagens soft-deleted após 90 dias de grace period são removidas permanentemente
+- Cleanup automático via BullMQ (diariamente às 2 AM)
+
+### Configuração
+
+**Variáveis de Ambiente:**
+
+```bash
+# Retention window (default: 90 dias)
+RETENTION_DAYS_DEFAULT=90
+
+# Outras opções: 30, 365
+RETENTION_DAYS_DEFAULT=30   # Retenção curta
+RETENTION_DAYS_DEFAULT=365  # Retenção longa (1 ano)
+```
+
+### API Endpoints
+
+**GET /memory/history**
+
+Recupera histórico de mensagens para um userId.
+
+```bash
+curl -X GET "http://localhost:3000/memory/history?userId=user@c.us&limit=50" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+**Parâmetros:**
+- `userId` (required): user identifier (author ou from)
+- `limit` (optional): número de mensagens (default 50, max 1000)
+- `offset` (optional): paginação offset (default 0)
+
+**Response:**
+```json
+{
+  "messages": [
+    {
+      "id": "uuid",
+      "userId": "user@c.us",
+      "conversationId": "user@c.us:2026-08-27",
+      "body": "Hello",
+      "timestamp": 1706868000,
+      "createdAt": "2026-08-27T01:00:00.000Z"
+    }
+  ],
+  "total": 123,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+### Integração n8n
+
+**Recuperar contexto de conversa:**
+
+1. **Adicionar HTTP Request node antes do LLM:**
+
+```javascript
+{
+  "method": "GET",
+  "url": "http://openwa:3000/memory/history",
+  "qs": {
+    "userId": "={{ $json.from }}",
+    "limit": 10
+  },
+  "authentication": "OpenWA API"
+}
+```
+
+2. **Injetar contexto no system prompt:**
+
+```javascript
+// Function node
+const history = $json.messages.map(m => 
+  `[${m.timestamp}] ${m.body}`
+).join('\n');
+
+return {
+  ...input,
+  contextHistory: history
+};
+
+// LLM Chat node system message
+const systemPrompt = `
+Você é um assistente. Use o contexto abaixo para responder:
+
+HISTÓRICO:
+{{ $json.contextHistory }}
+
+MENSAGEM ATUAL:
+{{ $json.body }}
+`;
+```
+
+### Monitoramento
+
+**Verificar retention job:**
+
+```bash
+# Bull Board (UI)
+http://localhost:3000/admin/queues
+
+# Queue: retention-queue
+# Job: cleanup-cycle
+# Schedule: 0 2 * * * (diariamente às 2 AM)
+```
+
+**Logs do cleanup:**
+
+```bash
+# Acompanhar logs
+docker logs -f openwa | grep MemoryCleanupService
+
+# Output esperado:
+# [MemoryCleanupService] Soft-deleted 5 expired messages (expiresAt < 2026-08-27T02:00:00Z)
+# [MemoryCleanupService] Hard-deleted 3 old soft-deleted messages (deletedAt < 2026-05-29T02:00:00Z)
+```
+
+### Troubleshooting
+
+**Mensagens não aparecem no histórico:**
+
+```sql
+-- Verificar se userId está populado
+SELECT COUNT(*), userId 
+FROM messages 
+WHERE userId IS NOT NULL 
+GROUP BY userId 
+LIMIT 10;
+
+-- Se userId é NULL, rodar migração
+npm run typeorm -- migration:run -d src/database/data-source.ts
+```
+
+**Recall muito lento (>200ms):**
+
+```sql
+-- Verificar se índices existem
+SELECT indexname, indexdef 
+FROM pg_indexes 
+WHERE tablename = 'messages' 
+  AND indexname LIKE '%userId%';
+
+-- Deve retornar: IDX_messages_userId_createdAt
+
+-- Analisar query plan
+EXPLAIN ANALYZE 
+SELECT * FROM messages 
+WHERE userId = 'user@c.us' 
+ORDER BY createdAt DESC 
+LIMIT 50;
+```
+
+**Cleanup job não está rodando:**
+
+```bash
+# Verificar se queue está ativa
+curl -X GET http://localhost:3000/admin/queues \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Procurar: retention-queue
+
+# Verificar Redis
+docker exec -it redis redis-cli -a YOUR_REDIS_PASSWORD
+KEYS bull:retention-queue:*
+```
+
+---
+
 ## Referências
 
 - [Architecture](ARCHITECTURE.md)
