@@ -155,27 +155,104 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 
 **Effort:** ~3-4 dias (workflow + integration + testes + docs)
 
+**Plans:** 3 plans (3 waves)
+
+- [ ] 04-01-PLAN.md — Tracer E2E: imagem foto de produto → validação de formato → GPT-4 Vision (gpt-4o-mini) → descrição → LLM + custo logado (Wave 1)
+- [ ] 04-02-PLAN.md — Expansão: casos documento/OCR + cena, acurácia via LLM-as-judge, fallback (Wave 2)
+- [ ] 04-03-PLAN.md — Workflow n8n WhatsApp-Vision-Analysis.json + shape test + CI/CD GitHub Actions + docs de custo em GUIDES.md (Wave 3)
+
+---
+
+## Phase 5: Long-term Memory 🎯
+
+**Goal:** Implementar sistema de memória persistente além de Redis para histórico de conversas e aprendizado de padrões.
+
+**Why this matters:** Atualmente OpenWA usa apenas Redis para cache de curto prazo. Memória de longo prazo permite:
+- Histórico completo de conversas por usuário
+- Aprendizado de padrões de interação
+- Contexto acumulado entre sessões
+- Personalização baseada em histórico
+
+**Deliverables:**
+
+- Modelo de dados para histórico de conversas (PostgreSQL)
+- Service layer para gerenciar memória de longo prazo
+- Integração com LLM context (últimas N mensagens + resumo de histórico)
+- API endpoints para consulta de histórico
+- Cleanup/archival de mensagens antigas (políticas de retenção)
+- Testes E2E validando persistência e recall
+
+**Success Criteria:**
+
+- ✅ Conversas persistidas automaticamente no banco
+- ✅ LLM acessa contexto histórico relevante
+- ✅ API permite consulta de histórico por usuário/sessão
+- ✅ Políticas de retenção configuráveis (30/90/365 dias)
+- ✅ Performance: recall < 200ms para últimas 50 mensagens
+- ✅ Testes E2E provam persistência cross-session
+
+**Dependencies:** Phase 2 (LLM integration), infraestrutura PostgreSQL já existente
+
+**Effort:** ~5-7 dias (schema + service + integration + policies + testes)
+
+---
+
+## Phase 6: Analytics Dashboard 🎯
+
+**Goal:** Dashboard de métricas de uso, performance de agentes e taxa de resolução.
+
+**Why this matters:** Visibilidade operacional essencial para:
+- Monitorar saúde do sistema (latências, erros, throughput)
+- Medir efetividade dos agentes (taxa de resolução, satisfação)
+- Identificar gargalos e oportunidades de otimização
+- Justificar investimento em IA (ROI, custos vs valor)
+
+**Deliverables:**
+
+- Schema de métricas (eventos, agregações, KPIs)
+- Backend: coletor de métricas + API de analytics
+- Dashboard web (ou integração com Grafana)
+- Métricas principais:
+  - Volume: mensagens/dia, usuários ativos, sessões
+  - Performance: latência p50/p95/p99, taxa de erro
+  - Custo: tokens consumidos, custo por conversa
+  - Qualidade: taxa de resolução, fallback rate, satisfação
+- Alertas configuráveis (latência alta, custo excedido)
+- Exportação de relatórios (CSV, API)
+
+**Success Criteria:**
+
+- ✅ Dashboard mostra métricas em tempo real (atualização < 30s)
+- ✅ Histórico de 30 dias visível com drill-down
+- ✅ Alertas disparam corretamente (email/Slack)
+- ✅ Performance: queries de dashboard < 500ms
+- ✅ Custo rastreado por feature (RAG, STT, Vision)
+- ✅ Exportação funcional (CSV, JSON via API)
+
+**Dependencies:** Phase 5 (histórico de mensagens para analytics), infraestrutura de monitoring já existente (Prometheus/Grafana)
+
+**Effort:** ~5-7 dias (schema + backend + dashboard + alertas + testes)
+
 ---
 
 ## Backlog & Future Phases
 
 Features identificadas na reanálise mas fora do escopo atual:
 
-### Telefonia VibeVoice (Fase 6 Futura)
+### Telefonia VibeVoice (Fase 7 Futura)
 
 - Integração com provedor VoIP
 - Chamadas de voz com STT/TTS em tempo real
 - Documentação já existe (GUIDES.md L365-534) como design de referência
 - Status: PLANEJADO (aviso adicionado na documentação)
 
-### Melhorias de Qualidade (Fase 5 Original)
+### Melhorias de Qualidade
 
 - Aumentar cobertura testes unitários (meta: 80%)
 - Testes de carga multi-sessão
-- CI/CD pipeline completo GitHub Actions
 - Status: Parcialmente coberto nas fases 2-4 (CI/CD para E2E)
 
-### Advanced Features (Fase 6 Original)
+### Advanced Features
 
 - Long-term memory persistente (além de Redis)
 - Dashboard analytics avançado

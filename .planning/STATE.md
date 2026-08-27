@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 status: in_progress
-stopped_at: Phase 3 (Validação E2E Áudio STT) COMPLETE - all tests passing with real audio
-last_updated: "2026-08-26T23:50:00.000Z"
-state_head: 46860730
+stopped_at: Phase 4 (Implementação E2E Vision) Wave 1 executing
+last_updated: "2026-08-27T00:00:00.000Z"
+state_head: 0ae37f66
 progress:
-  total_phases: 4
+  total_phases: 6
   completed_phases: 3
-  total_plans: 13
+  total_plans: 16
   completed_plans: 13
-  percent: 75
+  percent: 50
 ---
 
 # State - OpenWA Platform
@@ -135,7 +135,7 @@ OpenWA está **em produção** com todas as funcionalidades core implementadas, 
 
 Nenhum trabalho ativo no momento.
 
-### 📋 Próximas Tarefas (Roadmap E2E)
+### 📋 Próximas Tarefas (Roadmap E2E Expandido)
 
 1. **Phase 1: Bot de Intake E2E** ✅ COMPLETE (2026-08-26)
    - Controller + service implementados
@@ -157,17 +157,32 @@ Nenhum trabalho ativo no momento.
    - Real metrics: 309-409ms latency (81-91% faster than target), 100% accuracy
    - Real MP3 fixtures from microphone recordings
 
-4. **Phase 4: Implementação E2E Vision** 🎯 NEXT
-   - Criar workflow n8n para GPT-4 Vision
-   - Teste E2E: imagem → análise → resposta
+4. **Phase 4: Implementação E2E Vision** ◆ IN PROGRESS (2026-08-27)
+   - Helper vision-analyze.ts + GPT-4o-mini integration
+   - Teste E2E: imagem → GPT-4 Vision → análise → LLM
+   - Suite de casos: produto, documento, cena
+   - Workflow n8n + CI/CD
    - Effort: ~3-4 dias
+
+5. **Phase 5: Long-term Memory** 🎯 PLANNED
+   - Sistema de memória persistente além de Redis
+   - Histórico de conversas por usuário
+   - Aprendizado de padrões de interação
+   - API de consulta de histórico
+   - Effort: ~5-7 dias
+
+6. **Phase 6: Analytics Dashboard** 🎯 PLANNED
+   - Métricas de uso (volume, latência, custos)
+   - Performance de agentes (taxa de resolução)
+   - Dashboard web ou integração Grafana
+   - Alertas configuráveis
+   - Effort: ~5-7 dias
 
 ### 📋 Backlog (Futuro)
 
-- **Telefonia VibeVoice** (Fase 6) - Planejado
-- **Long-term Memory** - v2
-- **Analytics Dashboard** - v2
+- **Telefonia VibeVoice** (Fase 7) - Planejado
 - **Multi-tenant** - v2
+- **Horizontal Scaling** - v2
 
 ---
 
