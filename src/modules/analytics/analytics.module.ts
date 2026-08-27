@@ -6,37 +6,53 @@ import { Queue } from 'bullmq';
 import { AnalyticsEvent } from './entities/analytics-event.entity';
 import { AnalyticsAggregate } from './entities/analytics-aggregate.entity';
 import { AnalyticsAlertRule } from './entities/analytics-alert-rule.entity';
+import { AnalyticsIntentTaxonomy } from './entities/analytics-intent-taxonomy.entity';
+import { AnalyticsIntentClassification } from './entities/analytics-intent-classification.entity';
 import { AnalyticsEventsService } from './services/analytics-events.service';
 import { AnalyticsAggregationService } from './services/analytics-aggregation.service';
 import { AnalyticsExportService } from './services/analytics-export.service';
 import { AnalyticsAlertService } from './services/analytics-alert.service';
 import { AlertDispatchService } from './services/alert-dispatch.service';
+import { IntentClassificationService } from './services/intent-classification.service';
 import { AnalyticsEventListener } from './listeners/analytics-event.listener';
 import { AnalyticsAggregationProcessor } from './processors/analytics-aggregation.processor';
 import { AnalyticsCleanupProcessor } from './processors/analytics-cleanup.processor';
 import { AnalyticsAlertProcessor } from './processors/analytics-alert.processor';
+import { IntentClassificationProcessor } from './processors/intent-classification.processor';
 import { AnalyticsController } from './analytics.controller';
 import { QUEUE_NAMES } from '../queue/queue-names';
 import { createLogger } from '../../common/services/logger.service';
 
 /**
  * Phase 6 Plans 01 + 02b + 03: Analytics module for event-driven metrics collection and aggregation.
+ * Phase 10 Plan 01: Intent classification via Anthropic Batch API (DASH-03).
  *
  * Plan 01: Event collection (analytics_events) via EventEmitter2 listeners.
  * Plan 02b: Daily aggregation (analytics_aggregates) and retention cleanup via BullMQ.
  * Plan 03: Export service + SSE stream + alert rules + dispatch.
+ * Phase 10 Plan 01: Intent classification (analytics_intent_taxonomies, analytics_intent_classifications).
  *
- * Wires three entities on the 'data' connection. Registers the ANALYTICS queue and enqueues
- * three repeatable jobs at module init:
+ * Wires five entities on the 'data' connection. Registers the ANALYTICS queue and enqueues
+ * four repeatable jobs at module init:
  * - Aggregation job: daily at 1 AM (computes yesterday's KPIs)
  * - Cleanup job: daily at 2 AM (deletes raw events older than ANALYTICS_RETENTION_DAYS)
  * - Alert evaluation job: every 5 minutes (evaluates alert rules and dispatches notifications)
+ * - Intent classification job: hourly at minute 0 (batch-classifies unclassified messages)
  *
  * Uses BullMQ repeatable jobs, NOT @nestjs/schedule (not installed).
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([AnalyticsEvent, AnalyticsAggregate, AnalyticsAlertRule], 'data'),
+    TypeOrmModule.forFeature(
+      [
+        AnalyticsEvent,
+        AnalyticsAggregate,
+        AnalyticsAlertRule,
+        AnalyticsIntentTaxonomy,
+        AnalyticsIntentClassification,
+      ],
+      'data',
+    ),
     BullModule.registerQueue({
       name: QUEUE_NAMES.ANALYTICS,
       defaultJobOptions: {
@@ -52,12 +68,14 @@ import { createLogger } from '../../common/services/logger.service';
     AnalyticsExportService,
     AnalyticsAlertService,
     AlertDispatchService,
+    IntentClassificationService,
     AnalyticsEventListener,
     AnalyticsAggregationProcessor,
     AnalyticsCleanupProcessor,
     AnalyticsAlertProcessor,
+    IntentClassificationProcessor,
   ],
-  exports: [AnalyticsEventsService, AnalyticsAggregationService],
+  exports: [AnalyticsEventsService, AnalyticsAggregationService, IntentClassificationService],
 })
 export class AnalyticsModule implements OnModuleInit {
   private readonly logger = createLogger('AnalyticsModule');
@@ -109,5 +127,19 @@ export class AnalyticsModule implements OnModuleInit {
     );
 
     this.logger.log('Analytics alert evaluation repeatable job registered (every 5 minutes)');
+
+    // Enqueue repeatable job for intent classification hourly (Phase 10 Plan 01)
+    await this.analyticsQueue.add(
+      'classify-intents-batch',
+      {},
+      {
+        repeat: {
+          pattern: '0 * * * *', // Hourly at minute 0 (cron format)
+        },
+        jobId: 'classify-intents-hourly',
+      } as any,
+    );
+
+    this.logger.log('Intent classification repeatable job registered (hourly at minute 0)');
   }
 }

@@ -73,6 +73,7 @@
     "migration:show:main:prod": "npm run typeorm:prod -- migration:show -d dist/database/data-source-main.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
     "@aws-sdk/client-s3": "^3.1110.0",
     "@bull-board/api": "^8.6.1",
     "@bull-board/express": "^8.6.1",

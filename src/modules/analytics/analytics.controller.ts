@@ -16,17 +16,22 @@ import {
   AnalyticsCostResponse,
   AnalyticsConversationsResponse,
 } from './dto/analytics-response.dto';
+import { IntentQueryDto } from './dto/intent-query.dto';
+import { IntentResponseDto } from './dto/intent-response.dto';
+import { AnalyticsIntentClassification } from './entities/analytics-intent-classification.entity';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 
 /**
  * Phase 6 Plans 01 + 02b + 03: Analytics REST endpoints (DASH-05, DASH-01, DASH-02).
+ * Phase 10 Plan 01: Intent classification endpoints (DASH-03).
  *
  * Plan 01: GET /events
  * Plan 02b: GET /overview, /performance, /cost, /conversations
  * Plan 03: GET /export, GET /stream (SSE), GET|POST|DELETE /alerts/rules
+ * Phase 10 Plan 01: GET /intents
  *
- * All endpoints require OPERATOR role (T-06-01, T-06-06, T-06-08, T-06-10) to prevent unauthenticated access
+ * All endpoints require OPERATOR role (T-06-01, T-06-06, T-06-08, T-06-10, T-10-03) to prevent unauthenticated access
  * to analytics data containing chatId/userId and business metrics.
  */
 @ApiTags('analytics')
@@ -37,6 +42,8 @@ export class AnalyticsController {
     private readonly exportService: AnalyticsExportService,
     @InjectRepository(AnalyticsAlertRule, 'data')
     private readonly alertRuleRepository: Repository<AnalyticsAlertRule>,
+    @InjectRepository(AnalyticsIntentClassification, 'data')
+    private readonly intentClassificationRepository: Repository<AnalyticsIntentClassification>,
   ) {}
 
   /**
@@ -230,6 +237,81 @@ export class AnalyticsController {
   @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
   async deleteAlertRule(@Param('id') id: string): Promise<void> {
     await this.alertRuleRepository.delete(id);
+  }
+
+  /**
+   * Get intent distribution and trends (Phase 10 Plan 01).
+   *
+   * @param query - Query params (startDate, endDate, sessionId)
+   * @returns Intent distribution (topIntents) and trends over time
+   */
+  @Get('intents')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Get intent distribution and trends' })
+  @ApiResponse({ status: 200, description: 'Intent analytics', type: IntentResponseDto })
+  @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
+  async getIntents(@Query() query: IntentQueryDto): Promise<IntentResponseDto> {
+    const startDate = query.startDate ? new Date(query.startDate) : this.getDefaultStartDate();
+    const endDate = query.endDate ? new Date(query.endDate) : new Date();
+
+    // Build query with optional sessionId filter
+    const queryBuilder = this.intentClassificationRepository
+      .createQueryBuilder('classification')
+      .where('classification.classified_at >= :startDate', { startDate })
+      .andWhere('classification.classified_at <= :endDate', { endDate });
+
+    if (query.sessionId) {
+      queryBuilder.andWhere('classification.session_id = :sessionId', {
+        sessionId: query.sessionId,
+      });
+    }
+
+    const classifications = await queryBuilder.getMany();
+
+    if (classifications.length === 0) {
+      return {
+        topIntents: [],
+        trendsOverTime: [],
+      };
+    }
+
+    // Calculate top intents
+    const intentCounts = new Map<string, number>();
+    classifications.forEach((c) => {
+      intentCounts.set(c.intent_name, (intentCounts.get(c.intent_name) || 0) + 1);
+    });
+
+    const totalCount = classifications.length;
+    const topIntents = Array.from(intentCounts.entries())
+      .map(([intent, count]) => ({
+        intent,
+        count,
+        percentage: (count / totalCount) * 100,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // Calculate trends over time (daily aggregation)
+    const trendMap = new Map<string, Record<string, number>>();
+    classifications.forEach((c) => {
+      const date = c.classified_at.toISOString().split('T')[0]; // YYYY-MM-DD
+      if (!trendMap.has(date)) {
+        trendMap.set(date, {});
+      }
+      const dayCounts = trendMap.get(date)!;
+      dayCounts[c.intent_name] = (dayCounts[c.intent_name] || 0) + 1;
+    });
+
+    const trendsOverTime = Array.from(trendMap.entries())
+      .map(([date, intentCounts]) => ({
+        date,
+        intentCounts,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return {
+      topIntents,
+      trendsOverTime,
+    };
   }
 
   /**
