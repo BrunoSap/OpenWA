@@ -9,6 +9,10 @@ import { applyGlobalValidation } from './../src/config/app-validation';
 import { AuthService } from './../src/modules/auth/auth.service';
 import { ApiKeyRole } from './../src/modules/auth/entities/api-key.entity';
 import { AnalyticsEventsService } from './../src/modules/analytics/services/analytics-events.service';
+import { AnalyticsAlertService } from './../src/modules/analytics/services/analytics-alert.service';
+import { Repository } from 'typeorm';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { AnalyticsAlertRule } from './../src/modules/analytics/entities/analytics-alert-rule.entity';
 
 /**
  * Phase 6 Plan 03: Analytics export + alerts E2E tests.
@@ -21,6 +25,8 @@ import { AnalyticsEventsService } from './../src/modules/analytics/services/anal
 describe('Analytics Export & Alerts (e2e)', () => {
   let app: INestApplication;
   let analyticsService: AnalyticsEventsService;
+  let alertService: AnalyticsAlertService;
+  let alertRuleRepository: Repository<AnalyticsAlertRule>;
   let operatorKey: string;
 
   jest.setTimeout(60000);
@@ -37,6 +43,8 @@ describe('Analytics Export & Alerts (e2e)', () => {
     await app.init();
 
     analyticsService = app.get(AnalyticsEventsService);
+    alertService = app.get(AnalyticsAlertService);
+    alertRuleRepository = app.get(getRepositoryToken(AnalyticsAlertRule, 'data'));
 
     // Mint an OPERATOR key
     const authService = app.get(AuthService);
@@ -133,6 +141,120 @@ describe('Analytics Export & Alerts (e2e)', () => {
         expect(response.status).toBe(200);
         expect(response.headers['content-type']).toContain('text/event-stream');
       }
+    });
+  });
+
+  describe('Alert Rules', () => {
+    it('should create and evaluate a breaching alert rule', async () => {
+      // Seed events that will breach fallback rate threshold
+      const sessionId = `alert-session-${Date.now()}`;
+      await analyticsService.recordEvent({
+        event_type: 'message.processed',
+        session_id: sessionId,
+      });
+      await analyticsService.recordEvent({
+        event_type: 'message.processed',
+        session_id: sessionId,
+      });
+      await analyticsService.recordEvent({
+        event_type: 'fallback.triggered',
+        session_id: sessionId,
+      });
+
+      // Create alert rule: fallback_rate > 40%
+      const rule = await alertRuleRepository.save({
+        name: 'Test High Fallback',
+        metric: 'fallback_rate',
+        condition: 'above',
+        threshold: 40,
+        enabled: true,
+        notification_channels: { test: true },
+      });
+
+      // Evaluate rules
+      const breaches = await alertService.evaluateRules();
+
+      // Should breach (50% > 40%)
+      expect(breaches.length).toBeGreaterThan(0);
+      const breach = breaches.find((b) => b.rule.id === rule.id);
+      expect(breach).toBeDefined();
+      if (breach) {
+        expect(breach.currentValue).toBeGreaterThanOrEqual(40);
+      }
+
+      // Cleanup
+      await alertRuleRepository.delete(rule.id);
+    });
+
+    it('should not breach when value is below threshold', async () => {
+      // Seed events with low fallback rate
+      const sessionId = `no-breach-${Date.now()}`;
+      await analyticsService.recordEvent({
+        event_type: 'message.processed',
+        session_id: sessionId,
+      });
+      await analyticsService.recordEvent({
+        event_type: 'message.processed',
+        session_id: sessionId,
+      });
+      await analyticsService.recordEvent({
+        event_type: 'message.processed',
+        session_id: sessionId,
+      });
+      await analyticsService.recordEvent({
+        event_type: 'message.processed',
+        session_id: sessionId,
+      });
+      await analyticsService.recordEvent({
+        event_type: 'message.processed',
+        session_id: sessionId,
+      });
+      await analyticsService.recordEvent({
+        event_type: 'fallback.triggered',
+        session_id: sessionId,
+      });
+
+      // Create alert rule: fallback_rate > 50%
+      const rule = await alertRuleRepository.save({
+        name: 'Test No Breach',
+        metric: 'fallback_rate',
+        condition: 'above',
+        threshold: 50,
+        enabled: true,
+        notification_channels: { test: true },
+      });
+
+      // Evaluate rules
+      const breaches = await alertService.evaluateRules();
+
+      // Should not breach (16.67% < 50%)
+      const breach = breaches.find((b) => b.rule.id === rule.id);
+      expect(breach).toBeUndefined();
+
+      // Cleanup
+      await alertRuleRepository.delete(rule.id);
+    });
+
+    it('should skip disabled alert rules', async () => {
+      // Create disabled rule
+      const rule = await alertRuleRepository.save({
+        name: 'Test Disabled',
+        metric: 'fallback_rate',
+        condition: 'above',
+        threshold: 0,
+        enabled: false,
+        notification_channels: { test: true },
+      });
+
+      // Evaluate rules
+      const breaches = await alertService.evaluateRules();
+
+      // Should not evaluate disabled rule
+      const breach = breaches.find((b) => b.rule.id === rule.id);
+      expect(breach).toBeUndefined();
+
+      // Cleanup
+      await alertRuleRepository.delete(rule.id);
     });
   });
 });

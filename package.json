@@ -52,6 +52,7 @@
     "test:e2e:memory": "jest --config ./test/jest-e2e.json --testPathPatterns='memory.*\\.e2e-spec\\.ts$' --runInBand",
     "test:e2e:stt": "jest --config ./test/jest-e2e.json --testPathPatterns='audio.*\\.e2e-spec\\.ts$' --runInBand",
     "test:e2e:vision": "jest --config ./test/jest-e2e.json --testPathPatterns='vision.*\\.e2e-spec\\.ts$' --runInBand",
+    "test:e2e:analytics": "jest --config ./test/jest-e2e.json --testPathPatterns='analytics.*\\.e2e-spec\\.ts$' --runInBand",
     "test:pg-smoke": "node scripts/pg-uuid-smoke.js",
     "typeorm": "typeorm-ts-node-commonjs",
     "typeorm:prod": "typeorm",

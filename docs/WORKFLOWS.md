@@ -730,6 +730,147 @@ KEYS bull:retention-queue:*
 
 ---
 
+## Analytics Dashboard
+
+**Phase 6 (2026-08-27)**: Event-driven analytics collection and business KPIs.
+
+### Overview
+
+OpenWA collects analytics events from message processing, LLM calls, and conversation lifecycle events. The analytics dashboard provides:
+
+- **KPI Metrics**: Resolution rate, fallback rate, cost per conversation, DAU/MAU
+- **Performance**: Latency percentiles (p50/p95/p99) over time
+- **Cost Tracking**: Token usage and cost breakdown by provider (Groq/OpenAI)
+- **Alerting**: Configurable rules with Slack/webhook/email notifications
+
+### Configuration
+
+**Environment Variables:**
+
+```bash
+# Enable analytics collection (default: false)
+ANALYTICS_ENABLED=true
+
+# Retention period for raw events in days (default: 90)
+ANALYTICS_RETENTION_DAYS=90
+
+# Slack webhook for alert notifications (optional)
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+```
+
+### REST Endpoints
+
+All endpoints require `OPERATOR` role API key.
+
+**KPI Overview:**
+```bash
+GET /api/analytics/overview?startDate=2026-08-01&endDate=2026-08-27
+# Returns: resolutionRate, fallbackRate, costPerConversation, dau, mau + charts
+```
+
+**Performance Metrics:**
+```bash
+GET /api/analytics/performance?granularity=day
+# Returns: latency p50/p95/p99 time-series
+```
+
+**Cost Breakdown:**
+```bash
+GET /api/analytics/cost?groupBy=provider
+# Returns: total cost + breakdown by Groq/OpenAI
+```
+
+**Conversations:**
+```bash
+GET /api/analytics/conversations?page=1&limit=20
+# Returns: paginated conversation list with metrics
+```
+
+**Export (CSV/JSON):**
+```bash
+GET /api/analytics/export?format=csv&startDate=2026-08-01&endDate=2026-08-27
+# Downloads CSV file with all events in range
+```
+
+**Real-time Stream (SSE):**
+```bash
+GET /api/analytics/stream
+# Server-Sent Events stream, emits KPI snapshot every 10s
+```
+
+**Alert Rules Management:**
+```bash
+# List all alert rules
+GET /api/analytics/alerts/rules
+
+# Create alert rule
+POST /api/analytics/alerts/rules
+{
+  "name": "High Fallback Rate",
+  "metric": "fallback_rate",
+  "condition": "above",
+  "threshold": 15,
+  "enabled": true,
+  "notification_channels": {
+    "slack": true,
+    "webhook_url": "https://example.com/webhook"
+  }
+}
+
+# Delete alert rule
+DELETE /api/analytics/alerts/rules/:id
+```
+
+### Cost Constants
+
+**OpenAI (gpt-4o-mini):**
+- Input: $0.15 per 1M tokens
+- Output: $0.60 per 1M tokens
+- Image (Vision): $0.001 per image
+
+**Groq:**
+- All models: $0 (free tier)
+
+### Prometheus Alerts
+
+Business KPI alerts are defined in `prometheus/alerts.yml`:
+
+1. **HighFallbackRate**: Triggers when fallback rate > 15% for 10 minutes
+2. **LowResolutionRate**: Triggers when resolution rate < 70% for 30 minutes
+3. **HighLatency**: Triggers when p95 latency > 5000ms for 10 minutes
+4. **CostBudgetExceeded**: Triggers when daily cost increase > $50
+
+These alerts integrate with existing Prometheus/Grafana/Alertmanager stack.
+
+### Visualization Options
+
+**Option 1: Grafana** (recommended for MVP)
+- Use Prometheus as data source
+- Import pre-built dashboard (if provided)
+- Alertmanager handles notification routing
+
+**Option 2: Custom React Dashboard** (future phase)
+- Consumes REST API endpoints
+- Real-time updates via SSE `/stream` endpoint
+- Drill-down to individual conversations
+- CSV export for executive reports
+
+### Data Retention
+
+- **Raw events** (`analytics_events`): 90 days (configurable via `ANALYTICS_RETENTION_DAYS`)
+- **Aggregates** (`analytics_aggregates`): Permanent (or 2 years if compliance requires)
+- **Cleanup job**: Runs daily at 2 AM, hard-deletes events older than retention period
+
+### Background Jobs
+
+Three repeatable BullMQ jobs on the `analytics-queue`:
+
+1. **Aggregation** (daily at 1 AM): Computes yesterday's KPIs and upserts to `analytics_aggregates`
+2. **Cleanup** (daily at 2 AM): Deletes raw events older than `ANALYTICS_RETENTION_DAYS`
+3. **Alert Evaluation** (every 5 minutes): Evaluates enabled alert rules and dispatches notifications
+
+---
+
 ## Referências
 
 - [Architecture](ARCHITECTURE.md)
