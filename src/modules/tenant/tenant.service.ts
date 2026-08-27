@@ -37,6 +37,14 @@ export class TenantService {
   }
 
   /**
+   * Find tenant by Stripe customer ID
+   * Used by webhook handler to resolve tenant from Stripe events
+   */
+  async findByStripeCustomerId(stripeCustomerId: string): Promise<Tenant | null> {
+    return this.tenantRepository.findOne({ where: { stripeCustomerId } });
+  }
+
+  /**
    * Create a new tenant
    */
   async create(dto: CreateTenantDto): Promise<Tenant> {

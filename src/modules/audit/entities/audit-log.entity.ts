@@ -66,6 +66,12 @@ export enum AuditAction {
   INFRA_DATA_IMPORTED = 'infra_data_imported',
   INFRA_STORAGE_EXPORTED = 'infra_storage_exported',
   INFRA_STORAGE_IMPORTED = 'infra_storage_imported',
+
+  // Billing events (Phase 09 Plan 03: Stripe billing integration)
+  SUBSCRIPTION_CHANGED = 'subscription-changed',
+  SUBSCRIPTION_DELETED = 'subscription-deleted',
+  INVOICE_PAID = 'invoice-paid',
+  PAYMENT_FAILED = 'payment-failed',
 }
 
 export enum AuditSeverity {
