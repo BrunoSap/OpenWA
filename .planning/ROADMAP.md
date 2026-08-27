@@ -316,6 +316,12 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 - React SPA: ~3-5 days (design + implementation + tests) - Wave 2
 - **Total:** ~3-5 days (waves can overlap)
 
+**Plans:** 3 plans (2 waves; Grafana and React-tracer run parallel in Wave 1)
+
+- [ ] 07-01-PLAN.md — Grafana MVP: provisioning (datasources + 4-panel dashboard + alerts) + docker-compose + SETUP docs (Wave 1)
+- [ ] 07-02-PLAN.md — Tracer E2E: Overview page wired end-to-end (types + API client + real-time hook w/ header-auth + KPI cards + route + nav) (Wave 1)
+- [ ] 07-03-PLAN.md — Expansion: Performance/Cost/Conversations/Alerts views + charts + CSV/JSON export + operator-auth E2E + GUIDES docs (Wave 2)
+
 ---
 
 ## Backlog & Future Phases
