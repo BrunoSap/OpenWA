@@ -13,6 +13,8 @@ import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 import { SlidingWindowLimiter } from '../events/ws-rate-limit';
 import { resolveClientIp } from '../../common/utils/ip';
+import { RedisHealthIndicator } from './indicators/redis.health';
+import { EngineHealthIndicator } from './indicators/engine.health';
 
 interface DependencyStatus {
   status: 'up' | 'down';
@@ -44,6 +46,8 @@ export class HealthController {
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
     private readonly auditService: AuditService,
+    private readonly redisHealth: RedisHealthIndicator,
+    private readonly engineHealth: EngineHealthIndicator,
   ) {
     // Bounds the audit rows one source IP can write per minute through this deliberately
     // unthrottled route: the health probes themselves must never be rate-limited, but without a
@@ -113,7 +117,7 @@ export class HealthController {
   }
 
   @Get('ready')
-  @ApiOperation({ summary: 'Readiness probe — verifies the auth/audit + data databases respond' })
+  @ApiOperation({ summary: 'Readiness probe — verifies databases, Redis connectivity, and engine health' })
   @ApiResponse({ status: 200, description: 'Application is ready to accept traffic', type: ReadinessResponseDto })
   @ApiResponse({ status: 503, description: 'A required dependency is down' })
   async readiness(): Promise<HealthCheckResult> {
@@ -123,18 +127,22 @@ export class HealthController {
       throw new ServiceUnavailableException({ status: 'error', details: { shutdown: { status: 'draining' } } });
     }
 
-    const [main, data] = await Promise.all([
+    const [main, data, redis, engine] = await Promise.all([
       this.probeDatabase(this.mainDataSource),
       this.probeDatabase(this.dataDataSource),
+      this.probeRedis(),
+      this.probeEngine(),
     ]);
 
     const details: Record<string, DependencyStatus> = {
       mainDatabase: { status: main },
       dataDatabase: { status: data },
+      redis: { status: redis },
+      engine: { status: engine },
     };
 
-    if (main === 'down' || data === 'down') {
-      // 503 so orchestrators/LBs stop routing traffic to a node with a dead DB.
+    if (main === 'down' || data === 'down' || redis === 'down' || engine === 'down') {
+      // 503 so orchestrators/LBs stop routing traffic to a node with a dead dependency.
       throw new ServiceUnavailableException({ status: 'error', details });
     }
 
@@ -144,6 +152,24 @@ export class HealthController {
   private async probeDatabase(dataSource: DataSource): Promise<'up' | 'down'> {
     try {
       await this.withTimeout(dataSource.query('SELECT 1'), READINESS_PROBE_TIMEOUT_MS);
+      return 'up';
+    } catch {
+      return 'down';
+    }
+  }
+
+  private async probeRedis(): Promise<'up' | 'down'> {
+    try {
+      await this.withTimeout(this.redisHealth.isHealthy('redis'), READINESS_PROBE_TIMEOUT_MS);
+      return 'up';
+    } catch {
+      return 'down';
+    }
+  }
+
+  private async probeEngine(): Promise<'up' | 'down'> {
+    try {
+      await this.withTimeout(this.engineHealth.isHealthy('engine'), READINESS_PROBE_TIMEOUT_MS);
       return 'up';
     } catch {
       return 'down';
