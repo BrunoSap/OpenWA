@@ -181,6 +181,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
             __dirname + '/modules/automation/**/*.entity{.ts,.js}',
             __dirname + '/modules/intake/**/*.entity{.ts,.js}',
             __dirname + '/modules/memory/**/*.entity{.ts,.js}',
+            __dirname + '/modules/analytics/**/*.entity{.ts,.js}',
           ],
           migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
           logging: configService.get<boolean>('dataDatabase.logging', false),

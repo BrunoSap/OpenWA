@@ -18,6 +18,7 @@ describe('data CLI DataSource', () => {
     expect(files.some(f => f.endsWith('message.entity.ts'))).toBe(true);
     expect(files.some(f => f.endsWith('template.entity.ts'))).toBe(true);
     expect(files.some(f => f.endsWith('lid-mapping.entity.ts'))).toBe(true);
+    expect(files.some(f => f.endsWith('analytics-event.entity.ts'))).toBe(true);
   });
 
   it('never resolves the main-owned api-key/audit-log entities', () => {
