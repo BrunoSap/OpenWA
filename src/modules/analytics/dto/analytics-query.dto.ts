@@ -1,12 +1,12 @@
-import { IsOptional, IsInt, Min, Max } from 'class-validator';
+import { IsOptional, IsInt, Min, Max, IsDateString, IsString, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
- * Phase 6 Plan 01: Analytics query DTO for GET /api/analytics/events.
+ * Phase 6 Plans 01 + 02b: Analytics query DTO for analytics endpoints.
  *
- * Validates and coerces the limit query param with class-validator decorators.
- * Service-level clamping to max 100 is redundant but defensive (T-06-03).
+ * Plan 01: limit param for GET /api/analytics/events
+ * Plan 02b: startDate, endDate, sessionId, granularity, page, limit for KPI endpoints
  */
 export class AnalyticsQueryDto {
   @ApiPropertyOptional({
@@ -21,4 +21,47 @@ export class AnalyticsQueryDto {
   @Max(100)
   @Type(() => Number)
   limit?: number;
+
+  @ApiPropertyOptional({
+    description: 'Start date (ISO 8601)',
+    example: '2026-08-01T00:00:00Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'End date (ISO 8601)',
+    example: '2026-08-27T23:59:59Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by session ID',
+  })
+  @IsOptional()
+  @IsString()
+  sessionId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Aggregation granularity',
+    enum: ['hour', 'day', 'week'],
+    default: 'day',
+  })
+  @IsOptional()
+  @IsEnum(['hour', 'day', 'week'])
+  granularity?: 'hour' | 'day' | 'week';
+
+  @ApiPropertyOptional({
+    description: 'Page number (1-indexed)',
+    minimum: 1,
+    default: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  page?: number;
 }
