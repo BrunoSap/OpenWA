@@ -3,10 +3,11 @@ import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
- * Phase 6 Plans 01 + 02b: Analytics query DTO for analytics endpoints.
+ * Phase 6 Plans 01 + 02b + 03: Analytics query DTO for analytics endpoints.
  *
  * Plan 01: limit param for GET /api/analytics/events
  * Plan 02b: startDate, endDate, sessionId, granularity, page, limit for KPI endpoints
+ * Plan 03: format param for GET /api/analytics/export
  */
 export class AnalyticsQueryDto {
   @ApiPropertyOptional({
@@ -64,4 +65,13 @@ export class AnalyticsQueryDto {
   @Min(1)
   @Type(() => Number)
   page?: number;
+
+  @ApiPropertyOptional({
+    description: 'Export format',
+    enum: ['csv', 'json'],
+    default: 'csv',
+  })
+  @IsOptional()
+  @IsEnum(['csv', 'json'])
+  format?: string;
 }

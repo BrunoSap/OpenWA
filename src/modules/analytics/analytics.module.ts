@@ -7,6 +7,7 @@ import { AnalyticsEvent } from './entities/analytics-event.entity';
 import { AnalyticsAggregate } from './entities/analytics-aggregate.entity';
 import { AnalyticsEventsService } from './services/analytics-events.service';
 import { AnalyticsAggregationService } from './services/analytics-aggregation.service';
+import { AnalyticsExportService } from './services/analytics-export.service';
 import { AnalyticsEventListener } from './listeners/analytics-event.listener';
 import { AnalyticsAggregationProcessor } from './processors/analytics-aggregation.processor';
 import { AnalyticsCleanupProcessor } from './processors/analytics-cleanup.processor';
@@ -15,10 +16,11 @@ import { QUEUE_NAMES } from '../queue/queue-names';
 import { createLogger } from '../../common/services/logger.service';
 
 /**
- * Phase 6 Plans 01 + 02b: Analytics module for event-driven metrics collection and aggregation.
+ * Phase 6 Plans 01 + 02b + 03: Analytics module for event-driven metrics collection and aggregation.
  *
  * Plan 01: Event collection (analytics_events) via EventEmitter2 listeners.
  * Plan 02b: Daily aggregation (analytics_aggregates) and retention cleanup via BullMQ.
+ * Plan 03: Export service + SSE stream for dashboard.
  *
  * Wires both entities on the 'data' connection. Registers the ANALYTICS queue and enqueues
  * two repeatable jobs at module init:
@@ -42,6 +44,7 @@ import { createLogger } from '../../common/services/logger.service';
   providers: [
     AnalyticsEventsService,
     AnalyticsAggregationService,
+    AnalyticsExportService,
     AnalyticsEventListener,
     AnalyticsAggregationProcessor,
     AnalyticsCleanupProcessor,

@@ -1,808 +1,1125 @@
-# Phase 6: Analytics Dashboard - Research
+# Phase 6 Research: Analytics Dashboard
 
-**Researched:** 2026-08-26
-**Domain:** Analytics, Metrics Collection, Dashboard Architecture
-**Confidence:** MEDIUM
+**Goal:** Dashboard de métricas de uso, performance de agentes e taxa de resolução para OpenWA
 
-## Summary
+**Research Date:** 2026-08-27  
+**Researcher:** Direct inline research (autonomous mode)
 
-Phase 6 implementa um dashboard de métricas operacionais e de negócio para o OpenWA. A pesquisa identificou que a plataforma já possui infraestrutura básica de métricas (Prometheus/Grafana no docker-compose, módulo `src/modules/metrics`, agregações SQL em `src/modules/stats`), mas falta:
+---
 
-1. **Eventos de métricas de negócio**: tracking de tokens LLM, custo por conversa, taxa de resolução
-2. **Agregações pré-computadas**: materialized views ou jobs BullMQ para KPIs pesados
-3. **Dashboard dedicado**: API REST para analytics + UI web ou provisioning Grafana
+## Executive Summary
 
-**Primary recommendation:** Estender o sistema de métricas existente com event-driven collection (NestJS EventEmitter2) para KPIs de negócio, usar PostgreSQL com materialized views refresh incremental para agregações, e provisionar dashboards Grafana via YAML (já existe infraestrutura Docker). Evitar TimescaleDB por adicionar complexidade desnecessária — PostgreSQL nativo suporta time-series queries eficientes com índices em `createdAt`.
+OpenWA já possui **infraestrutura Prometheus completa** (`src/modules/metrics/`) com métricas básicas (uptime, memory, sessions, messages, webhooks). A Fase 6 adiciona:
 
-## Architectural Responsibility Map
+1. **Event-driven metrics collection** para KPIs de negócio (taxa de resolução, custo por conversa, fallback rate)
+2. **Time-series storage** usando PostgreSQL com agregações (não TimescaleDB — simplificar stack)
+3. **Analytics API** REST para dashboard frontend
+4. **Dashboard web** customizado (React) com drill-down e exportação
+5. **Alerting** via Prometheus Alertmanager (já disponível na stack)
 
-| Capability | Primary Tier | Secondary Tier | Rationale |
-|------------|-------------|----------------|-----------|
-| Metrics Collection | API / Backend | — | Event emitters em services coletam métricas no momento da ação (message send, LLM call) |
-| Metrics Storage | Database / Storage | — | PostgreSQL armazena eventos raw + aggregations; Redis cache para queries frequentes |
-| Aggregation Jobs | API / Backend | — | BullMQ workers processam agregações periódicas (hourly/daily rollups) |
-| Dashboard API | API / Backend | — | REST endpoints `/api/analytics/*` servem dados pré-agregados |
-| Dashboard UI | CDN / Static | Frontend Server (SSR) | Opção 1: Grafana (provisioned, no custom code). Opção 2: React dashboard servido via NestJS ServeStatic |
-| Alerting | API / Backend | — | Threshold checks em aggregation jobs disparam webhooks (Slack, email) |
+**Recommendation:** Extend existing Prometheus infrastructure + add PostgreSQL analytics tables + build lightweight React dashboard.
 
-## Standard Stack
+---
 
-### Core
-| Library | Version | Purpose | Why Standard |
-|---------|---------|---------|--------------|
-| @nestjs/event-emitter | 3.1.0 | Event-driven metrics collection | [VERIFIED: npm registry] NestJS oficial para pub/sub interno, usado para desacoplar coleta de métricas da lógica de negócio |
-| pg | 8.23.0 | PostgreSQL driver | [VERIFIED: codebase — já instalado] Driver nativo Node.js para PostgreSQL, já usado pelo projeto |
-| bullmq | 6.1.1 | Job scheduler para agregações | [VERIFIED: codebase — já instalado] Queue system do projeto, ideal para cron jobs de aggregation |
+## 1. Metrics Collection Strategy
 
-### Supporting
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| @nestjs/schedule | latest | Cron jobs alternativos | [ASSUMED] Se BullMQ for overkill para aggregations simples, mas BullMQ já existe e é mais robusto |
-| ioredis | 6.0.0 | Cache de agregações | [VERIFIED: codebase — já instalado] Já usado pelo projeto, ideal para memoizar queries de dashboard |
-| node-cron | latest | Fallback scheduler | [ASSUMED] Alternativa lightweight se BullMQ não for viável, mas menos tolerante a falhas |
+### 1.1 Current State (Existing Infrastructure)
 
-### Alternatives Considered
-| Instead of | Could Use | Tradeoff |
-|------------|-----------|----------|
-| PostgreSQL materialized views | TimescaleDB continuous aggregates | TimescaleDB adiciona dependência e complexidade de deploy; PostgreSQL views com REFRESH CONCURRENTLY são suficientes para volume esperado (<100k msgs/dia) |
-| Grafana provisioned | Custom React dashboard | Custom UI dá mais controle, mas Grafana é battle-tested e zero-maintenance; só construir custom se Grafana não atender UX específico |
-| Event-driven collection | Polling agregador | Polling adiciona latência e load no DB; events capturam métricas no momento exato da ação |
+**File:** `src/modules/metrics/metrics.service.ts` (175 lines)
 
-**Installation:**
-```bash
-npm install @nestjs/event-emitter
-```
+**Existing Metrics (Prometheus format):**
+- `openwa_up` — process health
+- `openwa_process_uptime_seconds` — uptime
+- `openwa_process_resident_memory_bytes` — memory usage
+- `openwa_process_heap_used_bytes` — heap usage
+- `openwa_sessions_total` — total sessions
+- `openwa_sessions_active` — active sessions
+- `openwa_sessions{status="..."}` — sessions by status
+- `openwa_messages_total{direction="..."}` — messages by direction
+- `openwa_messages_failed_total` — failed messages
+- `openwa_webhook_delivery_failures_total` — webhook failures
+- `openwa_session_reconnect_attempts_total` — reconnect attempts
+- `openwa_sessions_restricted` — restricted sessions
+- `openwa_send_pacing_refusals_total{reason="..."}` — rate limit refusals
 
-**Version verification:** 
-```bash
-npm view @nestjs/event-emitter version  # 3.1.0 (2026-08-26)
-npm view pg version                      # 8.23.0 (já instalado)
-npm view bullmq version                  # 6.1.1 (já instalado)
-```
+**Pattern:** Prometheus text exposition format (v0.0.4), no `prom-client` dependency (hand-rolled for minimal overhead).
 
-## Package Legitimacy Audit
+**Caching:** 5-second TTL on metrics render to avoid DB query spam from Prometheus scrapes.
 
-> Phase 6 instala 1 novo pacote externo.
+**Security:** `METRICS_TOKEN` bearer auth with constant-time compare (timing-safe).
 
-| Package | Registry | Age | Downloads | Source Repo | Verdict | Disposition |
-|---------|----------|-----|-----------|-------------|---------|-------------|
-| @nestjs/event-emitter | npm | 5+ yrs | ~500k/wk | github.com/nestjs/event-emitter | [OK] | Approved |
+### 1.2 Gap: Business KPIs Missing
 
-**Packages removed due to [SLOP] verdict:** none
+Current metrics are **infrastructure-focused** (sessions, messages, webhooks). Missing **business KPIs:**
 
-**Packages flagged as suspicious [SUS]:** none
+1. **Taxa de Resolução** — % de conversas resolvidas sem fallback humano
+2. **Fallback Rate** — % de mensagens que caíram em fallback (STT timeout, Vision erro, RAG sem match)
+3. **Custo por Conversa** — tokens consumidos × pricing (Groq free, OpenAI paid)
+4. **Latência End-to-End** — tempo desde mensagem WhatsApp até resposta enviada
+5. **Satisfaction Score** — feedback explícito ou implícito (thumbs up/down, abandono)
+6. **Usuários Ativos** — DAU/MAU/sessões únicas por período
+7. **Top Intents** — categorização de perguntas (FAQ, suporte, vendas)
 
-*@nestjs/event-emitter descoberto via Context7 (official NestJS docs), confirmado no registry npm. Parte da família @nestjs/* oficial.*
+### 1.3 Proposed Collection Pattern: Event-Driven
 
-## Architecture Patterns
+**Approach:** Emit domain events from business logic → listener records analytics.
 
-### System Architecture Diagram
+**Implementation:**
+1. **EventEmitter2** (NestJS built-in via `@nestjs/event-emitter`) para domain events
+2. **Analytics Listener Service** consome eventos e grava em tabelas `analytics_events` e `analytics_aggregates`
+3. **Prometheus metrics** remain for infrastructure monitoring (Grafana)
+4. **PostgreSQL analytics tables** for business KPIs (custom dashboard)
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Metrics Collection Layer                      │
-│  (Event-driven: decorators + EventEmitter2 in services)         │
-└───────────────────────┬─────────────────────────────────────────┘
-                        │ emit events
-                        ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                 Analytics Events Listener                        │
-│  (AnalyticsService subscribes to: message.sent, llm.completed,  │
-│   rag.query, stt.transcribed, vision.analyzed)                  │
-└───────────────────────┬─────────────────────────────────────────┘
-                        │ persist raw events
-                        ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                   PostgreSQL Storage                             │
-│  Tables: analytics_events (raw), analytics_aggregations (KPIs)  │
-│  Indexes: (event_type, created_at), (session_id, created_at)    │
-└───────────────────────┬─────────────────────────────────────────┘
-                        │
-          ┌─────────────┴─────────────┐
-          ↓                           ↓
-┌──────────────────────┐    ┌──────────────────────┐
-│  BullMQ Aggregator   │    │  Materialized Views  │
-│  (cron: hourly/daily)│    │  (manual REFRESH or  │
-│  Pre-compute KPIs    │    │   triggered refresh) │
-└──────────┬───────────┘    └──────────┬───────────┘
-           │                           │
-           └────────────┬──────────────┘
-                        ↓ query aggregated data
-           ┌────────────────────────┐
-           │   Analytics API        │
-           │  GET /api/analytics/*  │
-           │  (cached via ioredis)  │
-           └────────────┬───────────┘
-                        │
-         ┌──────────────┴───────────────┐
-         ↓                              ↓
-┌─────────────────┐         ┌─────────────────────┐
-│  Grafana        │         │  Custom Dashboard   │
-│  (provisioned)  │         │  (React, optional)  │
-└─────────────────┘         └─────────────────────┘
-```
+**Example Events:**
+- `conversation.started` — novo chat iniciado
+- `conversation.resolved` — conversa finalizada sem fallback
+- `conversation.escalated` — fallback para humano
+- `message.processed` — mensagem processada (body: latência, custo, tipo)
+- `llm.called` — chamada LLM (body: provider, model, tokens, custo)
+- `fallback.triggered` — fallback acionado (body: reason, stage)
 
-### Recommended Project Structure
-```
-src/
-├── modules/
-│   ├── analytics/                    # Novo módulo
-│   │   ├── analytics.module.ts
-│   │   ├── analytics.service.ts      # Event listener + persistence
-│   │   ├── analytics.controller.ts   # REST API
-│   │   ├── entities/
-│   │   │   ├── analytics-event.entity.ts
-│   │   │   └── analytics-aggregation.entity.ts
-│   │   ├── dto/
-│   │   │   ├── analytics-query.dto.ts
-│   │   │   └── kpi-response.dto.ts
-│   │   ├── jobs/
-│   │   │   └── aggregation.processor.ts  # BullMQ worker
-│   │   └── decorators/
-│   │       └── track-metric.decorator.ts # @TrackMetric() decorator
-│   ├── metrics/                      # Existente (Prometheus)
-│   └── stats/                        # Existente (agregações SQL)
-├── database/
-│   ├── migrations/
-│   │   └── XXXXXX-create-analytics-tables.ts
-│   └── views/
-│       └── analytics_kpis_hourly.sql  # Materialized view DDL
-└── config/
-    └── grafana-dashboards/           # Provisioned dashboards (JSON)
-        └── openwa-analytics.json
-```
+**Why Event-Driven vs Polling?**
+- ✅ Real-time: métricas atualizadas instantaneamente
+- ✅ Accurate: captura exata do momento do evento
+- ✅ Low overhead: no polling queries on hot tables
+- ✅ Decoupled: business logic não sabe de analytics
+- ❌ Complexity: mais código (event emitters + listeners)
 
-### Pattern 1: Event-Driven Metrics Collection
+**Verdict:** Event-driven é o padrão moderno para analytics em sistemas de alta carga. OpenWA já usa eventos para webhooks — estender o padrão.
 
-**What:** Services emitem eventos quando ações relevantes ocorrem; `AnalyticsService` escuta e persiste.
+---
 
-**When to use:** Para capturar métricas no momento exato da ação sem adicionar coupling.
+## 2. Storage Strategy
 
-**Example:**
-```typescript
-// Source: Context7 NestJS docs + best practices
-// src/modules/message/message.service.ts
-import { EventEmitter2 } from '@nestjs/event-emitter';
+### 2.1 Options Evaluated
 
-@Injectable()
-export class MessageService {
-  constructor(private eventEmitter: EventEmitter2) {}
+| Option | Pros | Cons | Verdict |
+|--------|------|------|---------|
+| **TimescaleDB** | Purpose-built for time-series, continuous aggregates, compression | Adiciona dependência, mais complexo deploy, learning curve | ❌ **Rejected** — overkill para escala atual |
+| **InfluxDB** | Time-series native, retention policies, Flux query language | Outra dependência, menos queries relacionais (joins difíceis) | ❌ **Rejected** — PostgreSQL já existe |
+| **PostgreSQL + Partitioning** | Stack existente, queries SQL normais, agregações materialized views | Partitioning manual, menos otimizado para time-series | ✅ **Recommended** — simplicidade vence |
+| **Prometheus only** | Já existe, Grafana integration out-of-box | Métricas agregadas (não drill-down por conversa individual), retention curto (default 15d) | ⚠️ **Complement** — infraestrutura sim, negócio não |
 
-  async sendMessage(sessionId: string, to: string, text: string) {
-    const startTime = Date.now();
-    
-    // Lógica de envio existente...
-    const result = await this.engine.sendText(to, text);
-    
-    // Emitir evento para analytics
-    this.eventEmitter.emit('message.sent', {
-      sessionId,
-      messageId: result.id,
-      direction: 'outgoing',
-      latencyMs: Date.now() - startTime,
-      timestamp: new Date(),
-    });
-    
-    return result;
-  }
-}
+**Decision:** PostgreSQL com tabelas dedicadas de analytics + Prometheus para infraestrutura.
 
-// src/modules/analytics/analytics.service.ts
-import { Injectable } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { AnalyticsEvent } from './entities/analytics-event.entity';
+### 2.2 Proposed Schema
 
-@Injectable()
-export class AnalyticsService {
-  constructor(
-    @InjectRepository(AnalyticsEvent)
-    private eventRepo: Repository<AnalyticsEvent>,
-  ) {}
+**Table 1: `analytics_events` (raw events)**
 
-  @OnEvent('message.sent')
-  async handleMessageSent(payload: any) {
-    await this.eventRepo.save({
-      eventType: 'message.sent',
-      sessionId: payload.sessionId,
-      metadata: payload,
-      createdAt: payload.timestamp,
-    });
-  }
-
-  @OnEvent('llm.completed')
-  async handleLLMCompleted(payload: any) {
-    await this.eventRepo.save({
-      eventType: 'llm.completed',
-      sessionId: payload.sessionId,
-      metadata: {
-        provider: payload.provider,
-        model: payload.model,
-        tokensUsed: payload.tokensUsed,
-        costUsd: payload.costUsd,
-        latencyMs: payload.latencyMs,
-      },
-      createdAt: new Date(),
-    });
-  }
-}
-```
-
-### Pattern 2: Materialized Views para Agregações
-
-**What:** PostgreSQL materialized views pré-computam agregações pesadas; refresh via BullMQ job.
-
-**When to use:** Quando queries de KPIs são complexas (GROUP BY multi-table, window functions) e rodam frequentemente.
-
-**Example:**
 ```sql
--- Source: PostgreSQL 16 docs + best practices
--- database/views/analytics_kpis_hourly.sql
+CREATE TABLE analytics_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_type VARCHAR(100) NOT NULL,  -- 'conversation.started', 'llm.called', etc
+  session_id VARCHAR(255),
+  chat_id VARCHAR(255),
+  user_id VARCHAR(255),  -- from messages.userId (Phase 5)
+  conversation_id VARCHAR(100),  -- chatId:YYYY-MM-DD (Phase 5)
+  
+  -- Event payload (JSON)
+  payload JSONB NOT NULL DEFAULT '{}',
+  
+  -- Metrics extracted for fast querying
+  latency_ms INTEGER,  -- end-to-end latency
+  tokens_used INTEGER,  -- LLM tokens consumed
+  cost_usd DECIMAL(10, 6),  -- calculated cost
+  
+  -- Timestamp
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  
+  -- Indexes
+  INDEX idx_analytics_events_type_time (event_type, created_at),
+  INDEX idx_analytics_events_session_time (session_id, created_at),
+  INDEX idx_analytics_events_user_time (user_id, created_at),
+  INDEX idx_analytics_events_created (created_at)  -- for time-range scans
+);
+```
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS analytics_kpis_hourly AS
+**Table 2: `analytics_aggregates` (pre-computed rollups)**
+
+```sql
+CREATE TABLE analytics_aggregates (
+  id SERIAL PRIMARY KEY,
+  
+  -- Aggregation dimensions
+  time_bucket TIMESTAMP NOT NULL,  -- hour/day/week bucket
+  granularity VARCHAR(20) NOT NULL,  -- 'hour', 'day', 'week'
+  session_id VARCHAR(255),  -- null = all sessions
+  
+  -- Aggregated metrics
+  conversations_started INTEGER DEFAULT 0,
+  conversations_resolved INTEGER DEFAULT 0,
+  conversations_escalated INTEGER DEFAULT 0,
+  messages_processed INTEGER DEFAULT 0,
+  fallbacks_triggered INTEGER DEFAULT 0,
+  
+  -- Performance metrics
+  latency_p50_ms INTEGER,
+  latency_p95_ms INTEGER,
+  latency_p99_ms INTEGER,
+  
+  -- Cost metrics
+  tokens_total INTEGER DEFAULT 0,
+  cost_total_usd DECIMAL(10, 4) DEFAULT 0,
+  
+  -- Quality metrics
+  resolution_rate DECIMAL(5, 2),  -- % resolved (0-100)
+  fallback_rate DECIMAL(5, 2),  -- % fallback (0-100)
+  
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  
+  -- Unique constraint per bucket + dimensions
+  UNIQUE (time_bucket, granularity, session_id),
+  
+  -- Indexes
+  INDEX idx_analytics_aggregates_time (time_bucket, granularity),
+  INDEX idx_analytics_aggregates_session (session_id, time_bucket)
+);
+```
+
+**Retention Policy:**
+- Raw events (`analytics_events`): 90 dias (após isso, hard delete via BullMQ job)
+- Aggregates (`analytics_aggregates`): permanente (ou 2 anos se compliance exigir)
+
+**Aggregation Strategy:**
+- **Hourly aggregates:** computed on-demand via `GROUP BY date_trunc('hour', created_at)`
+- **Daily/Weekly aggregates:** pre-computed via BullMQ scheduled job (daily at 1 AM)
+- **Materialized views:** opcional (PostgreSQL 9.3+), mas adiciona complexidade de refresh
+
+**Why not Materialized Views?**
+- BullMQ job dá mais controle (error handling, retry, monitoring)
+- Explicit table = simple INSERT/UPDATE (no REFRESH MATERIALIZED VIEW)
+- Easier to debug (query the table, inspect rows)
+
+---
+
+## 3. KPI Calculation Formulas
+
+### 3.1 Taxa de Resolução
+
+**Definition:** % de conversas que terminaram **sem** fallback para humano.
+
+**Formula:**
+```
+resolution_rate = (conversations_resolved / conversations_started) * 100
+```
+
+**Data Source:**
+- `conversations_started` — count of `conversation.started` events
+- `conversations_resolved` — count of `conversation.resolved` events (sem `conversation.escalated`)
+
+**Implementation:**
+```typescript
+// Event listener
+@OnEvent('conversation.resolved')
+async handleConversationResolved(payload: ConversationResolvedEvent) {
+  await this.analyticsService.recordEvent({
+    event_type: 'conversation.resolved',
+    session_id: payload.sessionId,
+    chat_id: payload.chatId,
+    user_id: payload.userId,
+    conversation_id: payload.conversationId,
+    payload: { ...payload },
+  });
+}
+```
+
+### 3.2 Fallback Rate
+
+**Definition:** % de mensagens que acionaram fallback (timeout, erro, no-match).
+
+**Formula:**
+```
+fallback_rate = (fallbacks_triggered / messages_processed) * 100
+```
+
+**Data Source:**
+- `fallbacks_triggered` — count of `fallback.triggered` events
+- `messages_processed` — count of `message.processed` events
+
+**Fallback Reasons (tracked in payload):**
+- `stt_timeout` — Groq Whisper timeout (Phase 3)
+- `stt_api_error` — Groq API error
+- `vision_timeout` — GPT-4 Vision timeout (Phase 4)
+- `vision_api_error` — Vision API error
+- `rag_no_match` — pgvector search returned no results (Phase 2)
+- `llm_error` — LLM API error (Groq/OpenAI)
+
+### 3.3 Custo por Conversa
+
+**Definition:** Custo médio de tokens LLM por conversa.
+
+**Formula:**
+```
+cost_per_conversation = total_cost_usd / conversations_started
+```
+
+**Token Cost Tracking:**
+```typescript
+// Event: llm.called
+{
+  event_type: 'llm.called',
+  payload: {
+    provider: 'groq' | 'openai',
+    model: 'llama-3.3-70b-versatile' | 'gpt-4o-mini',
+    tokens_input: 1500,
+    tokens_output: 300,
+    cost_usd: 0.0  // Groq = free, OpenAI = calculado
+  }
+}
+```
+
+**Pricing (hardcoded constants, atualizar se mudar):**
+- Groq: $0 (free tier)
+- OpenAI GPT-4o-mini: $0.150/1M input, $0.600/1M output
+- OpenAI GPT-4 Vision (gpt-4o-mini com image): same + $0.001/image
+
+**Implementation:**
+```typescript
+function calculateCost(event: LLMCalledEvent): number {
+  if (event.provider === 'groq') return 0;
+  
+  if (event.provider === 'openai') {
+    const inputCost = (event.tokens_input / 1_000_000) * 0.15;
+    const outputCost = (event.tokens_output / 1_000_000) * 0.60;
+    const imageCost = event.images_count ? event.images_count * 0.001 : 0;
+    return inputCost + outputCost + imageCost;
+  }
+  
+  return 0;  // unknown provider
+}
+```
+
+### 3.4 Latência End-to-End
+
+**Definition:** Tempo desde mensagem WhatsApp recebida até resposta enviada.
+
+**Measurement:**
+```typescript
+// Start: when webhook receives WhatsApp message
+const startTime = Date.now();
+
+// End: when message is sent back to WhatsApp
+const endTime = Date.now();
+const latencyMs = endTime - startTime;
+
+await this.analyticsService.recordEvent({
+  event_type: 'message.processed',
+  latency_ms: latencyMs,
+  payload: { ... },
+});
+```
+
+**Percentiles:** Calculate p50/p95/p99 during aggregation.
+
+**SQL (PostgreSQL):**
+```sql
 SELECT
-  date_trunc('hour', ae.created_at) AS hour_bucket,
-  ae.session_id,
-  COUNT(*) FILTER (WHERE ae.event_type = 'message.sent') AS messages_sent,
-  COUNT(*) FILTER (WHERE ae.event_type = 'message.received') AS messages_received,
-  COUNT(*) FILTER (WHERE ae.event_type = 'llm.completed') AS llm_calls,
-  SUM((ae.metadata->>'tokensUsed')::int) FILTER (WHERE ae.event_type = 'llm.completed') AS total_tokens,
-  SUM((ae.metadata->>'costUsd')::float) FILTER (WHERE ae.event_type = 'llm.completed') AS total_cost_usd,
-  AVG((ae.metadata->>'latencyMs')::int) FILTER (WHERE ae.event_type = 'llm.completed') AS avg_llm_latency_ms,
-  PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY (ae.metadata->>'latencyMs')::int) 
-    FILTER (WHERE ae.event_type = 'llm.completed') AS p95_llm_latency_ms
-FROM analytics_events ae
-WHERE ae.created_at >= NOW() - INTERVAL '30 days'
-GROUP BY hour_bucket, ae.session_id;
-
-CREATE UNIQUE INDEX ON analytics_kpis_hourly (hour_bucket, session_id);
+  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms) AS p50,
+  PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms) AS p95,
+  PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY latency_ms) AS p99
+FROM analytics_events
+WHERE event_type = 'message.processed'
+  AND created_at >= NOW() - INTERVAL '1 day';
 ```
 
+### 3.5 Usuários Ativos (DAU/MAU)
+
+**Definition:** Usuários únicos que enviaram pelo menos 1 mensagem no período.
+
+**Formula:**
+```sql
+-- DAU (Daily Active Users)
+SELECT COUNT(DISTINCT user_id)
+FROM analytics_events
+WHERE event_type = 'message.processed'
+  AND created_at >= CURRENT_DATE
+  AND created_at < CURRENT_DATE + INTERVAL '1 day';
+
+-- MAU (Monthly Active Users)
+SELECT COUNT(DISTINCT user_id)
+FROM analytics_events
+WHERE event_type = 'message.processed'
+  AND created_at >= DATE_TRUNC('month', CURRENT_DATE)
+  AND created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month';
+```
+
+**Data Source:** `messages.userId` (Phase 5) → propagated to analytics events.
+
+---
+
+## 4. Dashboard Architecture
+
+### 4.1 Options Evaluated
+
+| Option | Pros | Cons | Verdict |
+|--------|------|------|---------|
+| **Custom React Dashboard** | Full control, drill-down, export, embed anywhere | Build from scratch, maintenance | ✅ **Recommended** — business KPIs need custom views |
+| **Grafana Integration** | Already exists, Prometheus native, alerting built-in | Limited drill-down (no per-conversation view), less flexible | ⚠️ **Complement** — infraestrutura sim, negócio não |
+| **Metabase / Superset** | Low-code BI, SQL queries, self-service | Another service to deploy/maintain | ❌ **Rejected** — overkill |
+| **Admin Panel (React Admin / Refine)** | Pre-built CRUD, tables, charts | Generic, não otimizado para time-series | ❌ **Rejected** — não fit bem |
+
+**Decision:** Build custom React dashboard + keep Grafana for infrastructure monitoring.
+
+**Why Custom Dashboard?**
+- Business users need **drill-down** (click metric → see individual conversations)
+- Need **export to CSV** for executive reports
+- Need **real-time updates** (WebSocket or SSE)
+- Need **custom visualizations** (funnel charts, heatmaps)
+- Grafana é para DevOps, não para business stakeholders
+
+### 4.2 Technology Stack (Frontend)
+
+**Framework:** React 18 (matches existing `personalJoule` project experience)
+
+**UI Library:** 
+- **Ant Design** (comprehensive charts, tables, date pickers) OR
+- **Chakra UI + Recharts** (lighter, more modern)
+
+**Recommendation:** **Ant Design** — has built-in ProTable + ProChart components for analytics.
+
+**Charting:**
+- Ant Design Charts (based on G2Plot)
+- Recharts (fallback if Ant Charts não suficiente)
+
+**State Management:**
+- React Query (TanStack Query) — perfect for server state (polling analytics API)
+- Zustand — client state (filters, date range)
+
+**Real-Time:**
+- Server-Sent Events (SSE) — simpler than WebSocket for one-way updates
+- Fallback to polling (30s interval)
+
+### 4.3 Dashboard Views (Pages)
+
+**1. Overview Dashboard**
+- KPI Cards: Taxa de Resolução, Fallback Rate, Custo/Conversa, DAU/MAU
+- Line Charts: Messages/hour, Latency p95, Cost over time
+- Bar Chart: Top sessions by volume
+
+**2. Performance Dashboard**
+- Latency heatmap (hourly)
+- Percentile chart (p50/p95/p99 over time)
+- Slowest conversations table (drill-down)
+
+**3. Cost Dashboard**
+- Total cost by provider (Groq vs OpenAI)
+- Cost breakdown: tokens input/output, images
+- Cost per session (bar chart)
+- Cost forecast (trend projection)
+
+**4. Quality Dashboard**
+- Resolution rate trend
+- Fallback rate breakdown (by reason: STT timeout, Vision error, RAG no-match)
+- Satisfaction scores (if implemented)
+
+**5. Conversations Drill-Down**
+- Table: recent conversations with filters (date, session, status)
+- Click → conversation detail (messages, events, timeline)
+
+**6. Alerts & Settings**
+- Configure alert thresholds
+- Email/Slack notification settings
+- Export history
+
+### 4.4 API Design (Backend)
+
+**Module:** `src/modules/analytics/`
+
+**Structure:**
+```
+src/modules/analytics/
+├── analytics.module.ts
+├── analytics.controller.ts       // REST API
+├── analytics.service.ts          // business logic
+├── analytics-events.service.ts   // record events
+├── analytics-aggregation.service.ts  // compute aggregates
+├── entities/
+│   ├── analytics-event.entity.ts
+│   └── analytics-aggregate.entity.ts
+├── dto/
+│   ├── analytics-query.dto.ts    // query params (date range, filters)
+│   └── analytics-response.dto.ts
+├── processors/
+│   └── analytics-aggregation.processor.ts  // BullMQ daily job
+└── listeners/
+    └── analytics-event.listener.ts  // EventEmitter2 handlers
+```
+
+**REST Endpoints:**
+
 ```typescript
-// Refresh via BullMQ job (cron: every hour at :05)
-// src/modules/analytics/jobs/aggregation.processor.ts
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
-import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+// GET /api/analytics/overview
+// Query params: startDate, endDate, sessionId (optional)
+// Response: { kpis: {...}, charts: {...} }
 
-@Processor('analytics-aggregation')
-export class AggregationProcessor extends WorkerHost {
-  constructor(
-    @InjectDataSource('data') private dataSource: DataSource,
-  ) {
-    super();
-  }
+// GET /api/analytics/performance
+// Query params: startDate, endDate, granularity (hour/day)
+// Response: { latency: { p50: [], p95: [], p99: [] }, ... }
 
-  async process(job: Job) {
-    const startTime = Date.now();
-    
-    // REFRESH CONCURRENTLY permite leituras durante refresh
-    await this.dataSource.query(
-      'REFRESH MATERIALIZED VIEW CONCURRENTLY analytics_kpis_hourly'
-    );
-    
-    const durationMs = Date.now() - startTime;
-    console.log(`[Analytics] Materialized view refreshed in ${durationMs}ms`);
-    
-    return { durationMs };
-  }
+// GET /api/analytics/cost
+// Query params: startDate, endDate, groupBy (provider/session)
+// Response: { total: 123.45, breakdown: [...] }
+
+// GET /api/analytics/conversations
+// Query params: startDate, endDate, sessionId, status, page, limit
+// Response: { data: [...], total: 500, page: 1 }
+
+// GET /api/analytics/conversations/:id
+// Params: id (conversation_id)
+// Response: { messages: [...], events: [...], timeline: [...] }
+
+// GET /api/analytics/export
+// Query params: startDate, endDate, format (csv/json)
+// Response: CSV download or JSON
+
+// GET /api/analytics/stream (SSE)
+// Real-time KPI updates (emit every 10s)
+```
+
+**Query DTO:**
+```typescript
+export class AnalyticsQueryDto {
+  @IsDateString()
+  startDate: string;  // ISO 8601
+
+  @IsDateString()
+  endDate: string;
+
+  @IsOptional()
+  @IsString()
+  sessionId?: string;
+
+  @IsOptional()
+  @IsEnum(['hour', 'day', 'week'])
+  granularity?: 'hour' | 'day' | 'week';
 }
 ```
 
-### Pattern 3: KPI Calculation Formulas
-
-**What:** Fórmulas para calcular métricas de negócio a partir de eventos raw.
-
-**Example:**
+**Response DTO (Overview):**
 ```typescript
-// src/modules/analytics/analytics.service.ts
-
-interface ResolutionRateKPI {
-  totalConversations: number;
-  resolvedByBot: number;
-  escalatedToHuman: number;
-  resolutionRate: number; // 0-1
-}
-
-async calculateResolutionRate(
-  sessionId: string,
-  startDate: Date,
-  endDate: Date,
-): Promise<ResolutionRateKPI> {
-  // Uma conversa é "resolvida pelo bot" se não teve evento 'escalate.human'
-  // dentro de 30min após o último 'message.received'
+export class AnalyticsOverviewDto {
+  kpis: {
+    resolutionRate: number;  // 0-100
+    fallbackRate: number;
+    costPerConversation: number;
+    dau: number;
+    mau: number;
+  };
   
-  const result = await this.dataSource.query(`
-    WITH conversations AS (
-      SELECT
-        (metadata->>'conversationId') AS conversation_id,
-        MAX(created_at) AS last_activity,
-        BOOL_OR(event_type = 'escalate.human') AS escalated
-      FROM analytics_events
-      WHERE session_id = $1
-        AND created_at BETWEEN $2 AND $3
-        AND event_type IN ('message.received', 'message.sent', 'escalate.human')
-      GROUP BY conversation_id
-    )
-    SELECT
-      COUNT(*) AS total,
-      COUNT(*) FILTER (WHERE NOT escalated) AS resolved_by_bot,
-      COUNT(*) FILTER (WHERE escalated) AS escalated
-    FROM conversations
-  `, [sessionId, startDate, endDate]);
-  
-  const { total, resolved_by_bot, escalated } = result[0];
-  
-  return {
-    totalConversations: parseInt(total),
-    resolvedByBot: parseInt(resolved_by_bot),
-    escalatedToHuman: parseInt(escalated),
-    resolutionRate: total > 0 ? resolved_by_bot / total : 0,
+  charts: {
+    messagesOverTime: { timestamp: string; count: number }[];
+    latencyP95: { timestamp: string; latency: number }[];
+    costOverTime: { timestamp: string; cost: number }[];
   };
 }
-
-async calculateCostPerConversation(
-  sessionId: string,
-  startDate: Date,
-  endDate: Date,
-): Promise<number> {
-  const result = await this.dataSource.query(`
-    SELECT
-      COUNT(DISTINCT (metadata->>'conversationId')) AS conversation_count,
-      COALESCE(SUM((metadata->>'costUsd')::float), 0) AS total_cost
-    FROM analytics_events
-    WHERE session_id = $1
-      AND created_at BETWEEN $2 AND $3
-      AND event_type IN ('llm.completed', 'stt.transcribed', 'vision.analyzed')
-  `, [sessionId, startDate, endDate]);
-  
-  const { conversation_count, total_cost } = result[0];
-  return conversation_count > 0 ? total_cost / conversation_count : 0;
-}
-
-async calculateFallbackRate(
-  sessionId: string,
-  startDate: Date,
-  endDate: Date,
-): Promise<number> {
-  // Fallback = quando LLM responde "Não entendi" ou usa resposta padrão
-  // Rastrear via metadata.usedFallback ou event_type = 'llm.fallback'
-  
-  const result = await this.dataSource.query(`
-    SELECT
-      COUNT(*) FILTER (WHERE event_type = 'llm.completed') AS total_llm_calls,
-      COUNT(*) FILTER (WHERE 
-        event_type = 'llm.completed' 
-        AND (metadata->>'usedFallback')::boolean = true
-      ) AS fallback_count
-    FROM analytics_events
-    WHERE session_id = $1
-      AND created_at BETWEEN $2 AND $3
-  `, [sessionId, startDate, endDate]);
-  
-  const { total_llm_calls, fallback_count } = result[0];
-  return total_llm_calls > 0 ? fallback_count / total_llm_calls : 0;
-}
 ```
 
-### Anti-Patterns to Avoid
+---
 
-- **Polling para métricas em tempo real:** Use event-driven (EventEmitter2) para capturar no momento da ação, não polling periódico que adiciona latência e load.
-- **Agregações query-time sem cache:** KPIs complexos devem ser pré-computados (materialized views ou aggregation jobs), não calculados on-demand em cada request de dashboard.
-- **Métricas no hot path sem async:** Persistir eventos de analytics deve ser fire-and-forget (EventEmitter é sync mas listener pode fazer async save), nunca bloquear o fluxo principal (ex: envio de mensagem).
+## 5. Alerting Implementation
 
-## Don't Hand-Roll
+### 5.1 Approach: Prometheus Alertmanager
 
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| Dashboard UI | Custom charting from scratch | Grafana provisioned ou Chart.js/Recharts | [ASSUMED] Grafana é battle-tested e zero-maintenance para ops dashboards; se custom UI necessário, usar lib de charts pronta |
-| Time-series DB | TimescaleDB setup | PostgreSQL + índices em `createdAt` | [ASSUMED] TimescaleDB adiciona complexidade; PostgreSQL nativo suporta time-series queries eficientes com volume esperado (<100k events/dia) |
-| Percentile calculations | Custom algorithm | PostgreSQL `PERCENTILE_CONT()` | [VERIFIED: PostgreSQL docs] Window function nativa calcula p50/p95/p99 corretamente, mais eficiente que implementar em app layer |
-| Alerting logic | Custom threshold checker | Grafana Alerts ou webhook em aggregation job | [ASSUMED] Grafana tem alerting built-in com múltiplos canais (Slack, email); se custom, apenas threshold check simples em job |
+OpenWA já expõe métricas Prometheus (`/api/metrics`). Grafana dashboard já existe. **Reutilizar Alertmanager** (já na stack Docker Compose).
 
-**Key insight:** Dashboard e analytics são domínio com ferramentas maduras (Grafana, PostgreSQL aggregations). Não reinventar a roda — focar em coleta de eventos de negócio (que são específicos do OpenWA) e usar ferramentas prontas para agregação/visualização.
+**Alerting Flow:**
+1. Prometheus scrapes `/api/metrics` (existing)
+2. Prometheus evaluates alert rules (`prometheus/alerts.yml`)
+3. Alertmanager dispatches notifications (email, Slack, webhook)
 
-## Common Pitfalls
-
-### Pitfall 1: Eventos bloqueando o hot path
-
-**What goes wrong:** Persistir métricas de forma síncrona no fluxo de envio de mensagem adiciona latência visível ao usuário.
-
-**Why it happens:** EventEmitter2 do NestJS é síncrono por padrão; se listener faz I/O (DB save), bloqueia.
-
-**How to avoid:** 
-- Usar listeners async mas não await no emit (fire-and-forget)
-- Ou usar queue (BullMQ) para persistir eventos assincronamente
-- Aceitar que eventos podem ser perdidos em crash (trade-off latência vs durabilidade)
-
-**Warning signs:** Latência de envio de mensagem aumenta de <50ms para >200ms após adicionar analytics.
-
-### Pitfall 2: Aggregations sem índices adequados
-
-**What goes wrong:** Queries de KPIs fazem table scan completo, matando performance em produção.
-
-**Why it happens:** Desenvolvedores testam com poucos dados (<1k rows), onde índices não fazem diferença.
-
-**How to avoid:**
-- Criar índices compostos em `(event_type, created_at)` e `(session_id, created_at)`
-- Testar queries com EXPLAIN ANALYZE em dataset realista (100k+ rows)
-- Usar materialized views para agregações complexas
-
-**Warning signs:** Dashboard queries levam >5s; logs mostram "Seq Scan" no EXPLAIN.
-
-### Pitfall 3: Materialized views stale sem refresh
-
-**What goes wrong:** Dashboard mostra dados desatualizados (horas ou dias atrás) porque view não foi refreshed.
-
-**Why it happens:** Materialized views não auto-refresh; precisa de trigger manual ou cron job.
-
-**How to avoid:**
-- Configurar BullMQ job com cron `0 5 * * * *` (every hour at :05) para refresh
-- Monitorar timestamp da última row na view vs NOW() — alertar se >2h stale
-- Usar `REFRESH CONCURRENTLY` para permitir leituras durante refresh
-
-**Warning signs:** Dashboard mostra "Last updated: 8 hours ago"; usuário reporta "números não batem".
-
-### Pitfall 4: Cost tracking sem provider-specific logic
-
-**What goes wrong:** Cálculo de custo LLM está errado porque cada provider (Groq, OpenAI) tem pricing diferente.
-
-**Why it happens:** Código usa fórmula única `tokens * 0.001` sem considerar modelo e provider.
-
-**How to avoid:**
-- Mapear `(provider, model)` → pricing table (ex: `gpt-4: $0.03/1k tokens`, `groq/mixtral: free`)
-- Armazenar `costUsd` calculado no evento `llm.completed`, não recalcular depois
-- Atualizar pricing table quando providers mudarem preços
-
-**Warning signs:** Dashboard mostra custo total $0 quando deveria ser >$0; ou custo muito alto para Groq (que é free).
-
-## Code Examples
-
-Verified patterns from official sources:
-
-### BullMQ Cron Job for Aggregations
-
-```typescript
-// Source: Context7 BullMQ docs
-// src/modules/analytics/analytics.module.ts
-import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bullmq';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { AnalyticsService } from './analytics.service';
-import { AnalyticsController } from './analytics.controller';
-import { AggregationProcessor } from './jobs/aggregation.processor';
-import { AnalyticsEvent } from './entities/analytics-event.entity';
-
-@Module({
-  imports: [
-    TypeOrmModule.forFeature([AnalyticsEvent], 'data'),
-    BullModule.registerQueue({
-      name: 'analytics-aggregation',
-      defaultJobOptions: {
-        removeOnComplete: 100,
-        removeOnFail: 500,
-      },
-    }),
-  ],
-  providers: [AnalyticsService, AggregationProcessor],
-  controllers: [AnalyticsController],
-  exports: [AnalyticsService],
-})
-export class AnalyticsModule {
-  constructor(private analyticsService: AnalyticsService) {}
-
-  async onModuleInit() {
-    // Schedule hourly aggregation job
-    await this.analyticsService.scheduleAggregationJob();
-  }
-}
-
-// src/modules/analytics/analytics.service.ts
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
-
-@Injectable()
-export class AnalyticsService {
-  constructor(
-    @InjectQueue('analytics-aggregation') private aggregationQueue: Queue,
-  ) {}
-
-  async scheduleAggregationJob() {
-    await this.aggregationQueue.upsertJobScheduler(
-      'hourly-aggregation',
-      {
-        pattern: '0 5 * * * *', // Every hour at :05
-        tz: 'UTC',
-      },
-      {
-        name: 'aggregate-metrics',
-        data: { type: 'hourly' },
-      },
-    );
-    console.log('[Analytics] Hourly aggregation job scheduled');
-  }
-}
-```
-
-### Grafana Dashboard Provisioning
+**New Alert Rules (add to `prometheus/alerts.yml`):**
 
 ```yaml
-# Source: Context7 Grafana docs
-# config/grafana-dashboards/datasource.yml
-apiVersion: 1
-
-datasources:
-  - name: OpenWA PostgreSQL
-    type: postgres
-    url: postgres:5432
-    user: openwa
-    secureJsonData:
-      password: 'openwa_secure_2026'
-    jsonData:
-      database: openwa
-      sslmode: 'disable'
-      maxOpenConns: 10
-      maxIdleConns: 5
-      connMaxLifetime: 14400
-      postgresVersion: 1600
-      timescaledb: false
+groups:
+  - name: openwa_business
+    interval: 60s
+    rules:
+      # Alert: High Fallback Rate
+      - alert: HighFallbackRate
+        expr: |
+          (
+            rate(openwa_fallbacks_total[5m]) /
+            rate(openwa_messages_processed_total[5m])
+          ) > 0.15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High fallback rate detected"
+          description: "Fallback rate is {{ $value | humanizePercentage }} (threshold 15%)"
+      
+      # Alert: Low Resolution Rate
+      - alert: LowResolutionRate
+        expr: |
+          (
+            rate(openwa_conversations_resolved_total[1h]) /
+            rate(openwa_conversations_started_total[1h])
+          ) < 0.70
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low resolution rate detected"
+          description: "Resolution rate is {{ $value | humanizePercentage }} (threshold 70%)"
+      
+      # Alert: High Latency
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(openwa_message_latency_bucket[5m])
+          ) > 5000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High message latency detected"
+          description: "p95 latency is {{ $value }}ms (threshold 5000ms)"
+      
+      # Alert: Cost Budget Exceeded
+      - alert: CostBudgetExceeded
+        expr: |
+          increase(openwa_cost_total_usd[1d]) > 50
+        labels:
+          severity: critical
+        annotations:
+          summary: "Daily cost budget exceeded"
+          description: "Daily cost is ${{ $value }} (budget $50)"
 ```
 
+**Alertmanager Configuration (`alertmanager/config.yml`):**
+
+```yaml
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: 'default'
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  
+  routes:
+    - match:
+        severity: critical
+      receiver: 'slack-critical'
+    
+    - match:
+        severity: warning
+      receiver: 'email-ops'
+
+receivers:
+  - name: 'default'
+    webhook_configs:
+      - url: 'http://openwa:3000/api/webhooks/alerts'
+  
+  - name: 'slack-critical'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#openwa-alerts'
+        title: '🚨 OpenWA Critical Alert'
+        text: '{{ .CommonAnnotations.summary }}'
+  
+  - name: 'email-ops'
+    email_configs:
+      - to: 'ops@example.com'
+        from: 'alertmanager@example.com'
+        smarthost: 'smtp.example.com:587'
+        auth_username: '${SMTP_USER}'
+        auth_password: '${SMTP_PASS}'
+```
+
+### 5.2 In-App Alerts (Custom Dashboard)
+
+Beyond Prometheus alerts (for DevOps), **business users** need in-app alerts.
+
+**Implementation:**
+1. **Alert Rules Table** (`analytics_alert_rules`):
+   ```sql
+   CREATE TABLE analytics_alert_rules (
+     id SERIAL PRIMARY KEY,
+     name VARCHAR(255) NOT NULL,
+     metric VARCHAR(100) NOT NULL,  -- 'resolution_rate', 'fallback_rate', etc
+     condition VARCHAR(20) NOT NULL,  -- 'above', 'below'
+     threshold DECIMAL(10, 2) NOT NULL,
+     enabled BOOLEAN DEFAULT TRUE,
+     notification_channels JSONB,  -- ['email', 'slack', 'webhook']
+     created_at TIMESTAMP DEFAULT NOW()
+   );
+   ```
+
+2. **Alert Evaluation Job** (BullMQ, every 5 minutes):
+   - Query current metric values
+   - Compare against alert rules
+   - If threshold breached → dispatch notification
+
+3. **Notification Channels:**
+   - **Email:** NodeMailer (SMTP)
+   - **Slack:** Webhook (same as Prometheus)
+   - **Webhook:** HTTP POST to custom URL (for integrations like n8n)
+
+**Example Alert Rule (in-app):**
 ```json
-// config/grafana-dashboards/openwa-analytics.json (simplified)
 {
-  "dashboard": {
-    "title": "OpenWA Analytics",
-    "panels": [
-      {
-        "title": "Messages per Hour",
-        "targets": [
-          {
-            "format": "time_series",
-            "rawSql": "SELECT hour_bucket AS time, messages_sent, messages_received FROM analytics_kpis_hourly WHERE $__timeFilter(hour_bucket) ORDER BY 1",
-            "refId": "A"
-          }
-        ],
-        "type": "graph"
-      },
-      {
-        "title": "LLM Cost (USD)",
-        "targets": [
-          {
-            "format": "time_series",
-            "rawSql": "SELECT hour_bucket AS time, SUM(total_cost_usd) as cost FROM analytics_kpis_hourly WHERE $__timeFilter(hour_bucket) GROUP BY 1 ORDER BY 1",
-            "refId": "A"
-          }
-        ],
-        "type": "graph"
-      }
-    ]
+  "name": "Daily Cost Limit",
+  "metric": "cost_total_usd",
+  "condition": "above",
+  "threshold": 50.0,
+  "notification_channels": ["email", "slack"]
+}
+```
+
+**Alert Dispatch Service:**
+```typescript
+@Injectable()
+export class AlertDispatchService {
+  async dispatch(alert: Alert, value: number): Promise<void> {
+    const channels = alert.notification_channels;
+    
+    if (channels.includes('email')) {
+      await this.sendEmail(alert, value);
+    }
+    
+    if (channels.includes('slack')) {
+      await this.sendSlack(alert, value);
+    }
+    
+    if (channels.includes('webhook')) {
+      await this.sendWebhook(alert, value);
+    }
+  }
+  
+  private async sendSlack(alert: Alert, value: number): Promise<void> {
+    const text = `⚠️ Alert: ${alert.name}\nCurrent value: ${value}\nThreshold: ${alert.threshold}`;
+    await axios.post(process.env.SLACK_WEBHOOK_URL, { text });
   }
 }
 ```
 
-### Analytics REST API
+---
+
+## 6. Aggregation Strategy
+
+### 6.1 Pre-compute vs Query-Time
+
+**Pre-compute (Materialized Aggregates):**
+- ✅ Fast queries (no aggregation at read time)
+- ✅ Consistent performance regardless of data volume
+- ❌ Delayed updates (hourly/daily jobs)
+- ❌ Storage overhead (duplicate data)
+
+**Query-Time (On-Demand Aggregation):**
+- ✅ Real-time data (no staleness)
+- ✅ No storage overhead
+- ❌ Slow queries (aggregation on every request)
+- ❌ Performance degrades with data volume
+
+**Hybrid Approach (Recommended):**
+- **Hourly aggregates:** query-time (`GROUP BY date_trunc('hour', created_at)`)
+  - Fast enough for last 24 hours (dashboard default view)
+- **Daily/Weekly aggregates:** pre-computed (BullMQ job daily at 1 AM)
+  - Needed for historical trends (30d, 90d)
+  - Insert into `analytics_aggregates` table
+
+### 6.2 Aggregation Job (BullMQ)
+
+**File:** `src/modules/analytics/processors/analytics-aggregation.processor.ts`
+
+**Schedule:** Daily at 1 AM (cron: `0 1 * * *`)
+
+**Logic:**
+```typescript
+@Processor('analytics')
+export class AnalyticsAggregationProcessor {
+  @Process('daily-aggregation')
+  async aggregateDaily(job: Job): Promise<void> {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(0, 0, 0, 0);
+    
+    const tomorrow = new Date(yesterday);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // Aggregate yesterday's data
+    const aggregates = await this.computeAggregates(yesterday, tomorrow, 'day');
+    
+    // Upsert into analytics_aggregates
+    for (const agg of aggregates) {
+      await this.analyticsRepo.upsert(agg, ['time_bucket', 'granularity', 'session_id']);
+    }
+  }
+  
+  private async computeAggregates(
+    startDate: Date,
+    endDate: Date,
+    granularity: 'hour' | 'day' | 'week',
+  ): Promise<AnalyticsAggregate[]> {
+    // Query raw events and compute aggregates
+    const events = await this.analyticsEventsRepo
+      .createQueryBuilder('e')
+      .where('e.created_at >= :start', { start: startDate })
+      .andWhere('e.created_at < :end', { end: endDate })
+      .getMany();
+    
+    // Group by session_id
+    const bySession = groupBy(events, e => e.session_id);
+    
+    const aggregates: AnalyticsAggregate[] = [];
+    
+    for (const [sessionId, sessionEvents] of Object.entries(bySession)) {
+      const agg = new AnalyticsAggregate();
+      agg.time_bucket = startDate;
+      agg.granularity = granularity;
+      agg.session_id = sessionId;
+      
+      agg.conversations_started = sessionEvents.filter(e => e.event_type === 'conversation.started').length;
+      agg.conversations_resolved = sessionEvents.filter(e => e.event_type === 'conversation.resolved').length;
+      agg.conversations_escalated = sessionEvents.filter(e => e.event_type === 'conversation.escalated').length;
+      agg.messages_processed = sessionEvents.filter(e => e.event_type === 'message.processed').length;
+      agg.fallbacks_triggered = sessionEvents.filter(e => e.event_type === 'fallback.triggered').length;
+      
+      // Latency percentiles
+      const latencies = sessionEvents
+        .filter(e => e.latency_ms !== null)
+        .map(e => e.latency_ms)
+        .sort((a, b) => a - b);
+      
+      if (latencies.length > 0) {
+        agg.latency_p50_ms = percentile(latencies, 0.5);
+        agg.latency_p95_ms = percentile(latencies, 0.95);
+        agg.latency_p99_ms = percentile(latencies, 0.99);
+      }
+      
+      // Cost total
+      agg.tokens_total = sumBy(sessionEvents, e => e.tokens_used || 0);
+      agg.cost_total_usd = sumBy(sessionEvents, e => e.cost_usd || 0);
+      
+      // Rates
+      agg.resolution_rate = agg.conversations_started > 0
+        ? (agg.conversations_resolved / agg.conversations_started) * 100
+        : null;
+      
+      agg.fallback_rate = agg.messages_processed > 0
+        ? (agg.fallbacks_triggered / agg.messages_processed) * 100
+        : null;
+      
+      aggregates.push(agg);
+    }
+    
+    return aggregates;
+  }
+}
+```
+
+### 6.3 Retention & Cleanup
+
+**Raw Events Retention:** 90 days
+
+**Cleanup Job (BullMQ):**
+```typescript
+@Processor('analytics')
+export class AnalyticsCleanupProcessor {
+  @Process('cleanup-old-events')
+  async cleanupOldEvents(job: Job): Promise<void> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 90);
+    
+    const result = await this.analyticsEventsRepo
+      .createQueryBuilder()
+      .delete()
+      .where('created_at < :cutoff', { cutoff: cutoffDate })
+      .execute();
+    
+    this.logger.log(`Deleted ${result.affected} old analytics events`);
+  }
+}
+```
+
+**Schedule:** Daily at 2 AM (cron: `0 2 * * *`)
+
+---
+
+## 7. Migration Path (Existing Codebase Integration)
+
+### 7.1 Integration Points
+
+**1. Message Processing (Phase 1-5 já implementado)**
+
+**File:** `src/modules/message/message.service.ts`
+
+**Change:** Emit analytics events após processar mensagem.
 
 ```typescript
-// Source: NestJS patterns + codebase conventions
-// src/modules/analytics/analytics.controller.ts
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { ApiKeyGuard } from '../auth/guards/api-key.guard';
-import { AnalyticsService } from './analytics.service';
-import { AnalyticsQueryDto } from './dto/analytics-query.dto';
+// BEFORE (existing)
+async processIncomingMessage(message: IncomingMessage): Promise<void> {
+  // ... existing logic ...
+  await this.messageRepo.save(message);
+}
 
-@ApiTags('analytics')
-@Controller('api/analytics')
-@UseGuards(ApiKeyGuard)
-export class AnalyticsController {
-  constructor(private analyticsService: AnalyticsService) {}
+// AFTER (with analytics)
+async processIncomingMessage(message: IncomingMessage): Promise<void> {
+  const startTime = Date.now();
+  
+  // ... existing logic ...
+  await this.messageRepo.save(message);
+  
+  const latencyMs = Date.now() - startTime;
+  
+  // Emit analytics event
+  this.eventEmitter.emit('message.processed', {
+    sessionId: message.sessionId,
+    chatId: message.chatId,
+    userId: message.userId,  // from Phase 5
+    conversationId: message.conversationId,  // from Phase 5
+    latencyMs,
+    messageType: message.type,
+  });
+}
+```
 
-  @Get('kpis/resolution-rate')
-  @ApiOperation({ summary: 'Get resolution rate KPI' })
-  async getResolutionRate(@Query() query: AnalyticsQueryDto) {
-    return this.analyticsService.calculateResolutionRate(
-      query.sessionId,
-      query.startDate,
-      query.endDate,
-    );
+**2. LLM Integration (Groq/OpenAI)**
+
+**File:** `src/modules/llm/llm.service.ts` (ou similar)
+
+**Change:** Track tokens e custo em cada chamada LLM.
+
+```typescript
+async callLLM(prompt: string, model: string): Promise<LLMResponse> {
+  const startTime = Date.now();
+  
+  const response = await this.llmClient.chat({
+    model,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  
+  const latencyMs = Date.now() - startTime;
+  const tokensInput = response.usage.prompt_tokens;
+  const tokensOutput = response.usage.completion_tokens;
+  const costUsd = this.calculateCost(model, tokensInput, tokensOutput);
+  
+  // Emit analytics event
+  this.eventEmitter.emit('llm.called', {
+    provider: this.getProvider(model),
+    model,
+    tokens_input: tokensInput,
+    tokens_output: tokensOutput,
+    cost_usd: costUsd,
+    latency_ms: latencyMs,
+  });
+  
+  return response;
+}
+```
+
+**3. Fallback Handlers (STT, Vision, RAG)**
+
+**Files:**
+- `test/support/stt-transcribe.ts` (Phase 3)
+- `test/support/vision-analyze.ts` (Phase 4)
+- RAG service (Phase 2)
+
+**Change:** Emit `fallback.triggered` quando fallback acontece.
+
+```typescript
+// In transcribeWithFallback (STT)
+if (!result.ok) {
+  this.eventEmitter.emit('fallback.triggered', {
+    stage: 'stt',
+    reason: result.fallbackReason,  // 'timeout' | 'api_error'
+  });
+}
+
+// In analyzeWithFallback (Vision)
+if (!result.ok) {
+  this.eventEmitter.emit('fallback.triggered', {
+    stage: 'vision',
+    reason: result.fallbackReason,
+  });
+}
+
+// In RAG service
+if (retrievedDocs.length === 0) {
+  this.eventEmitter.emit('fallback.triggered', {
+    stage: 'rag',
+    reason: 'no_match',
+  });
+}
+```
+
+### 7.2 Backward Compatibility
+
+**Requirement:** Phase 6 não pode quebrar fases anteriores (1-5 já completas).
+
+**Strategy:**
+- ✅ Analytics é **opt-in** via feature flag: `ANALYTICS_ENABLED` (default `false`)
+- ✅ Event emitters são **no-op** se analytics desabilitado
+- ✅ Prometheus metrics continuam funcionando (independente de analytics)
+- ✅ Existing tests não precisam mudar (events são side-effects)
+
+**Implementation:**
+```typescript
+@Injectable()
+export class AnalyticsEventListener {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly analyticsService: AnalyticsService,
+  ) {}
+  
+  private get enabled(): boolean {
+    return this.config.get<boolean>('ANALYTICS_ENABLED', false);
   }
-
-  @Get('kpis/cost-per-conversation')
-  @ApiOperation({ summary: 'Get cost per conversation' })
-  async getCostPerConversation(@Query() query: AnalyticsQueryDto) {
-    const cost = await this.analyticsService.calculateCostPerConversation(
-      query.sessionId,
-      query.startDate,
-      query.endDate,
-    );
-    return { costUsd: cost };
-  }
-
-  @Get('kpis/fallback-rate')
-  @ApiOperation({ summary: 'Get LLM fallback rate' })
-  async getFallbackRate(@Query() query: AnalyticsQueryDto) {
-    const rate = await this.analyticsService.calculateFallbackRate(
-      query.sessionId,
-      query.startDate,
-      query.endDate,
-    );
-    return { fallbackRate: rate };
-  }
-
-  @Get('overview')
-  @ApiOperation({ summary: 'Get analytics overview for last 30 days' })
-  async getOverview(@Query('sessionId') sessionId?: string) {
-    const endDate = new Date();
-    const startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
-    
-    const [resolutionRate, costPerConv, fallbackRate] = await Promise.all([
-      this.analyticsService.calculateResolutionRate(sessionId, startDate, endDate),
-      this.analyticsService.calculateCostPerConversation(sessionId, startDate, endDate),
-      this.analyticsService.calculateFallbackRate(sessionId, startDate, endDate),
-    ]);
-    
-    return {
-      period: { startDate, endDate },
-      sessionId: sessionId || 'all',
-      kpis: {
-        resolutionRate: resolutionRate.resolutionRate,
-        totalConversations: resolutionRate.totalConversations,
-        costPerConversation: costPerConv,
-        fallbackRate: fallbackRate,
-      },
-    };
+  
+  @OnEvent('message.processed')
+  async handleMessageProcessed(payload: any): Promise<void> {
+    if (!this.enabled) return;  // no-op if disabled
+    await this.analyticsService.recordEvent({ ...payload });
   }
 }
 ```
 
-## State of the Art
+---
 
-| Old Approach | Current Approach | When Changed | Impact |
-|--------------|------------------|--------------|--------|
-| Prometheus metrics only | Hybrid: Prometheus (ops) + Business events (analytics) | 2024+ | [ASSUMED] Prometheus é excelente para métricas de infraestrutura mas não para KPIs de negócio complexos; trend é separar concerns |
-| Real-time aggregation | Pre-computed via materialized views | 2020+ | [ASSUMED] Dashboards modernos priorizam UX (queries <500ms) sobre freshness absoluta; stale-by-5-min é aceitável |
-| Polling for metrics | Event-driven collection | 2018+ | [VERIFIED: NestJS EventEmitter2 desde 2018] Event-driven captura métricas no momento exato sem overhead de polling |
+## 8. Technology Choices & Rationale
 
-**Deprecated/outdated:**
-- **TimescaleDB para todo time-series:** [ASSUMED] Hype inicial (2017-2020) diminuiu; comunidade reconhece que PostgreSQL nativo é suficiente para muitos casos (<1M events/dia)
-- **Custom dashboard frameworks (D3.js from scratch):** [ASSUMED] Grafana e libs prontas (Chart.js, Recharts) dominaram; custom só para UX muito específico
+| Decision | Choice | Alternative Considered | Rationale |
+|----------|--------|----------------------|-----------|
+| **Storage** | PostgreSQL | TimescaleDB, InfluxDB | Reuse existing stack, simplicity over time-series optimization |
+| **Collection** | Event-driven | Polling | Real-time, accurate, low overhead, decoupled |
+| **Aggregation** | Hybrid (query-time + pre-compute) | Only query-time, only pre-compute | Balance real-time vs performance |
+| **Dashboard** | Custom React | Grafana only, Metabase | Business KPIs need drill-down, export, custom views |
+| **Alerting** | Prometheus Alertmanager + In-App | Only in-app | Reuse existing infra for DevOps, add in-app for business users |
+| **UI Library** | Ant Design | Chakra UI + Recharts | Comprehensive analytics components (ProTable, ProChart) |
+| **State** | React Query + Zustand | Redux | Simpler, server-state focused |
+| **Real-Time** | SSE (fallback polling) | WebSocket | Simpler for one-way updates, lower complexity |
+| **Jobs** | BullMQ | Cron, node-schedule | Already used in Phase 5, Redis-backed, retry/monitoring |
 
-## Assumptions Log
+---
 
-> List all claims tagged `[ASSUMED]` in this research. The planner and discuss-phase use this
-> section to identify decisions that need user confirmation before execution.
+## 9. Effort Estimation
 
-| # | Claim | Section | Risk if Wrong |
-|---|-------|---------|---------------|
-| A1 | PostgreSQL é suficiente vs TimescaleDB para volume esperado (<100k events/dia) | Standard Stack | Se volume real for >1M events/dia, queries podem ficar lentas; migração para TimescaleDB seria complexa |
-| A2 | Grafana provisioned é preferível a custom React dashboard | Standard Stack | Se UX específico for mandatório (ex: embedded no produto), Grafana pode não atender; refactor para custom seria significativo |
-| A3 | LLM cost tracking não existe atualmente | Architecture Patterns | Se já existir tracking (não encontrado em grep), implementação duplicada seria waste |
-| A4 | Pricing LLM varia por provider/model | Common Pitfalls | Se pricing for flat, lógica de pricing table seria over-engineering |
-| A5 | Dashboard pode tolerar staleness de 5-60min | State of the Art | Se real-time absoluto for requirement, materialized views não servem; precisaria stream processing (Kafka, Flink) |
-| A6 | Volume de eventos permite event storage em PostgreSQL (não precisa Kafka) | Architecture Patterns | Se volume for >10k events/segundo, PostgreSQL pode não escalar; precisaria message broker dedicado |
+### Wave 1: Tracer (Backend)
+**Goal:** Prove event collection → storage → basic query.
 
-**If this table is empty:** All claims in this research were verified or cited — no user confirmation needed.
+**Tasks:**
+1. Create analytics module scaffolding
+2. Create `analytics_events` entity + migration
+3. Create `AnalyticsEventListener` with 1 event (`message.processed`)
+4. Emit event from `message.service.ts`
+5. Basic API endpoint: `GET /api/analytics/events` (list last 100 events)
+6. E2E test: emit event → query API → verify stored
 
-## Open Questions
+**Estimated Time:** ~3-4 hours  
+**Files Changed:** ~8 files (entity, service, controller, listener, migration, test)
 
-1. **Qual o volume esperado de eventos de analytics?**
-   - What we know: Projeto suporta até 10+ sessões simultâneas; sem dados de msgs/dia por sessão
-   - What's unclear: Se volume será <10k events/dia (PostgreSQL tranquilo) ou >100k (considerar optimizations)
-   - Recommendation: Implementar com PostgreSQL; monitorar query performance; migrar para TimescaleDB se p95 latency >1s
+### Wave 2: Expansion (Aggregation + KPIs)
+**Goal:** Complete event collection, aggregation logic, all KPIs.
 
-2. **Dashboard deve ser real-time (<1s freshness) ou near-real-time (~5min) é aceitável?**
-   - What we know: Grafana e materialized views suportam near-real-time bem; real-time precisa streaming
-   - What's unclear: Requirement de negócio — ops dashboards geralmente toleram 5min staleness
-   - Recommendation: Começar com near-real-time (materialized views refresh a cada hora, cache Redis 30s); se real-time for necessário, adicionar WebSocket push depois
+**Tasks:**
+1. Emit all events (`conversation.started`, `llm.called`, `fallback.triggered`, etc) — 5 events
+2. Create `analytics_aggregates` entity + migration
+3. Implement aggregation service (compute KPIs from raw events)
+4. BullMQ aggregation job (daily at 1 AM)
+5. BullMQ cleanup job (delete events >90d)
+6. API endpoints: `/overview`, `/performance`, `/cost`, `/conversations`
+7. Unit tests for aggregation logic
+8. E2E tests for all KPI calculations
 
-3. **LLM cost tracking: como capturar tokens e custo?**
-   - What we know: Codebase não tem tracking explícito de tokens (grep não encontrou)
-   - What's unclear: Se integração n8n externa já rastreia, ou se OpenWA precisa instrumentar chamadas LLM
-   - Recommendation: Adicionar instrumentation em `src/modules/integration` (n8n client) para capturar `tokensUsed` e calcular `costUsd` com pricing table
+**Estimated Time:** ~2-3 days  
+**Files Changed:** ~20 files (5 event emitters, entities, services, jobs, DTOs, tests)
 
-4. **Alerting: qual canal preferido (email, Slack, webhook)?**
-   - What we know: Projeto já tem webhook system robusto com retry
-   - What's unclear: Preferência operacional — Grafana Alerts suporta múltiplos canais
-   - Recommendation: Usar Grafana Alerts com webhook para flexibilidade; implementar receiver endpoint em OpenWA se custom logic necessário
+### Wave 3: Dashboard + Alerting
+**Goal:** React dashboard, charts, alerting.
 
-## Environment Availability
+**Tasks:**
+1. Create React app scaffolding (`dashboard/` subdirectory)
+2. Setup Ant Design + React Query
+3. Implement 4 dashboard pages (Overview, Performance, Cost, Quality)
+4. Drill-down conversations table + detail view
+5. Export to CSV
+6. SSE endpoint for real-time updates
+7. Alert rules table + evaluation job
+8. Notification channels (email, Slack, webhook)
+9. Prometheus alert rules (`prometheus/alerts.yml`)
+10. E2E tests for dashboard (Playwright)
 
-> Verifica dependências externas para Phase 6.
+**Estimated Time:** ~3-4 days  
+**Files Changed:** ~30 files (React components, API endpoints, alert services, tests)
 
-| Dependency | Required By | Available | Version | Fallback |
-|------------|------------|-----------|---------|----------|
-| PostgreSQL | Metrics storage | ✓ | 16+ (docker-compose) | — |
-| Redis | Aggregation cache | ✓ | 7 (já usado) | — |
-| Grafana | Dashboard (option 1) | ✓ | latest (docker-compose) | Custom React dashboard |
-| BullMQ | Aggregation jobs | ✓ | 6.1.1 (já instalado) | @nestjs/schedule para cron simples |
+**Total Effort:** ~5-7 days (matching ROADMAP estimate)
 
-**Missing dependencies with no fallback:** Nenhuma — todas as dependências core já existem no projeto.
+---
 
-**Missing dependencies with fallback:**
-- **Grafana:** Se não for usar Grafana, fallback é construir custom React dashboard (Chart.js/Recharts). Grafana está disponível no `docker-compose.full-stack.yml`, então assume-se que está disponível.
+## 10. Success Criteria
 
-## Validation Architecture
+### Must-Haves (Deliverables from ROADMAP)
+- ✅ Schema de métricas (`analytics_events`, `analytics_aggregates`)
+- ✅ Backend: coletor de métricas + API de analytics
+- ✅ Dashboard web com métricas principais
+- ✅ Métricas rastreadas: volume, performance, custo, qualidade
+- ✅ Alertas configuráveis (Prometheus + in-app)
+- ✅ Exportação de relatórios (CSV, API)
 
-> **Não aplicável:** `.planning/config.json` não existe; assume-se que validação não está configurada. Se workflow.nyquist_validation for habilitado futuramente, adicionar:
+### Verification (ROADMAP Success Criteria)
+- ✅ Dashboard mostra métricas em tempo real (atualização < 30s)
+- ✅ Histórico de 30 dias visível com drill-down
+- ✅ Alertas disparam corretamente (email/Slack)
+- ✅ Performance: queries de dashboard < 500ms
+- ✅ Custo rastreado por feature (RAG, STT, Vision)
+- ✅ Exportação funcional (CSV, JSON via API)
 
-### Test Framework (quando habilitado)
-| Property | Value |
-|----------|-------|
-| Framework | Jest 30.4.2 (já configurado) |
-| Config file | package.json jest section |
-| Quick run command | `npm run test:e2e:analytics` |
-| Full suite command | `npm run test:e2e` |
+### Bonus (Nice-to-Haves)
+- ⚠️ Satisfaction score tracking (thumbs up/down)
+- ⚠️ Intent classification (FAQ vs suporte vs vendas)
+- ⚠️ Anomaly detection (vs threshold-based alerts)
 
-### Phase Requirements → Test Map (quando habilitado)
-| Req ID | Behavior | Test Type | Automated Command | File Exists? |
-|--------|----------|-----------|-------------------|-------------|
-| DASH-01 | Event collection não bloqueia hot path | unit | `npm test src/modules/analytics/analytics.service.spec.ts` | ❌ Wave 0 |
-| DASH-02 | Aggregation job atualiza materialized view | integration | `npm run test:e2e -- aggregation.e2e-spec.ts` | ❌ Wave 0 |
-| DASH-03 | KPI calculations retornam valores corretos | unit | `npm test src/modules/analytics/analytics.service.spec.ts` | ❌ Wave 0 |
-| DASH-04 | API analytics retorna <500ms com cache | e2e | `npm run test:e2e -- analytics-api.e2e-spec.ts` | ❌ Wave 0 |
+---
 
-### Wave 0 Gaps (quando validação habilitada)
-- [ ] `test/analytics-api.e2e-spec.ts` — covers DASH-04 (API latency)
-- [ ] `src/modules/analytics/analytics.service.spec.ts` — covers DASH-01, DASH-03
-- [ ] `test/aggregation.e2e-spec.ts` — covers DASH-02
+## 11. Risk Assessment
 
-*(Se validação não for habilitada, Wave 0 pode omitir testes E2E e focar em manual testing via Grafana dashboards.)*
+| Risk | Impact | Likelihood | Mitigation |
+|------|--------|-----------|------------|
+| **Event emission breaks existing flows** | High | Low | Feature flag (`ANALYTICS_ENABLED`), no-op listeners, backward compat tests |
+| **Analytics queries slow down prod** | High | Medium | Separate read-replica for analytics, query optimization, aggregates |
+| **Storage growth (90d retention)** | Medium | High | Cleanup job, monitoring, partitioning if needed |
+| **Dashboard overload (too many metrics)** | Medium | Medium | Start with 4 core KPIs, progressive disclosure |
+| **Alert fatigue (too many alerts)** | Medium | High | Conservative thresholds, group by severity, mute/snooze |
+| **Cost tracking inaccurate** | Medium | Low | Hardcoded pricing constants, unit tests, manual validation |
 
-## Security Domain
+---
 
-> Security enforcement assume-se habilitado (padrão quando config ausente).
+## 12. References
 
-### Applicable ASVS Categories
+### Existing Codebase
+- `src/modules/metrics/metrics.service.ts` — Prometheus metrics (existing)
+- `src/modules/message/entities/message.entity.ts` — Message schema with `userId`, `conversationId` (Phase 5)
+- `src/modules/memory/` — Long-term memory (Phase 5) as data source for analytics
+- `test/support/stt-transcribe.ts` — STT fallback pattern (Phase 3)
+- `test/support/vision-analyze.ts` — Vision fallback pattern (Phase 4)
 
-| ASVS Category | Applies | Standard Control |
-|---------------|---------|------------------|
-| V2 Authentication | yes | API Key guard existente para `/api/analytics/*` endpoints |
-| V3 Session Management | no | Analytics é stateless; sem sessões |
-| V4 Access Control | yes | API Key guard + rate limiting (já existente no projeto) |
-| V5 Input Validation | yes | class-validator em DTOs (AnalyticsQueryDto) |
-| V6 Cryptography | no | Não armazena dados sensíveis; métricas são agregadas |
+### External Documentation
+- [NestJS EventEmitter](https://docs.nestjs.com/techniques/events) — Event-driven architecture
+- [BullMQ Documentation](https://docs.bullmq.io/) — Job scheduling, aggregation
+- [Prometheus Alerting](https://prometheus.io/docs/alerting/latest/) — Alert rules, Alertmanager
+- [Ant Design Pro](https://pro.ant.design/) — React admin/analytics components
+- [React Query](https://tanstack.com/query/latest) — Server state management
+- [PostgreSQL PERCENTILE_CONT](https://www.postgresql.org/docs/current/functions-aggregate.html) — Percentile calculation
 
-### Known Threat Patterns for Analytics Stack
+---
 
-| Pattern | STRIDE | Standard Mitigation |
-|---------|--------|---------------------|
-| SQL injection em queries analytics | Tampering | [VERIFIED: codebase] TypeORM parametrized queries + raw SQL com bind params ($1, $2) |
-| PII leak em analytics events | Information Disclosure | Sanitizar `metadata` — nunca armazenar senhas, tokens, ou PII (CPF, email completo) |
-| DoS via aggregation queries | Denial of Service | Rate limiting no controller + query timeout (PostgreSQL `statement_timeout`) |
-| Unauthorized access a métricas | Elevation of Privilege | API Key guard (já existente) + Grafana auth (configurar `GF_SECURITY_ADMIN_PASSWORD`) |
+## 13. Next Steps (After Research)
 
-**Mitigations específicas para Phase 6:**
-- **Event metadata sanitization:** Antes de persistir `analytics_events`, remover campos sensíveis (ex: `message.body`, `user.email`) — manter apenas IDs e métricas numéricas.
-- **Grafana authentication:** Configurar `GF_SECURITY_ADMIN_PASSWORD` no docker-compose; não usar default `admin/admin`.
-- **Query timeout:** Configurar `statement_timeout = 10s` no PostgreSQL para prevenir DoS via queries lentas.
+1. **Create 3 PLAN.md files:**
+   - `06-01-PLAN.md` — Wave 1: Tracer (event collection + basic API)
+   - `06-02-PLAN.md` — Wave 2: Expansion (aggregation + all KPIs + jobs)
+   - `06-03-PLAN.md` — Wave 3: Dashboard + Alerting (React + charts + notifications)
 
-## Sources
+2. **Verify plans with `gsd-plan-checker`**
 
-### Primary (HIGH confidence)
-- [VERIFIED: npm registry] @nestjs/event-emitter 3.1.0 — confirmed via `npm view`
-- [VERIFIED: npm registry] pg 8.23.0, bullmq 6.1.1 — confirmed already installed via package.json
-- [CITED: Context7 /nestjs/docs.nestjs.com] EventEmitter2 patterns, interceptors for metrics collection
-- [CITED: Context7 /taskforcesh/bullmq] Cron job patterns, job schedulers with upsertJobScheduler
-- [CITED: Context7 /grafana/grafana] PostgreSQL data source provisioning, dashboard JSON format
+3. **Execute with `gsd-executor` agents (3 waves)**
 
-### Secondary (MEDIUM confidence)
-- [CITED: Context7 /nestjs/docs.nestjs.com] ObserveModule runtime metrics (não usado no projeto, referência de padrão)
+4. **Update PROGRESS.md após completion**
 
-### Tertiary (LOW confidence)
-- [ASSUMED] PostgreSQL materialized views são suficientes para volume <100k events/dia (não confirmado com benchmark)
-- [ASSUMED] TimescaleDB vs PostgreSQL tradeoff — baseado em conhecimento geral, não em documentação oficial para este projeto
-- [ASSUMED] KPI formulas (resolution rate, cost per conversation) — baseado em práticas comuns de chatbot analytics, não em requirement específico do projeto
-- [ASSUMED] Grafana é preferível a custom dashboard — baseado em experiência geral, não em requirement de UX específico
+---
 
-## Metadata
-
-**Confidence breakdown:**
-- Standard stack: MEDIUM - NestJS e BullMQ patterns verificados via Context7; PostgreSQL aggregations assumidas baseadas em capabilities conhecidas
-- Architecture: MEDIUM - Event-driven collection verificada (NestJS EventEmitter2 docs); materialized views e aggregation jobs assumidas eficazes para volume esperado
-- Pitfalls: MEDIUM - Baseado em experiência com analytics systems e PostgreSQL, mas não testado especificamente neste projeto
-
-**Research date:** 2026-08-26
-**Valid until:** 30 dias (stack estável; NestJS/PostgreSQL patterns mudam pouco)
+**End of Research Document**

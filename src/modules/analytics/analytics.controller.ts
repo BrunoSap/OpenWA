@@ -1,8 +1,11 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Res, Sse } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Response } from 'express';
+import { interval, map, Observable } from 'rxjs';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
 import { AnalyticsEventsService } from './services/analytics-events.service';
+import { AnalyticsExportService } from './services/analytics-export.service';
 import { AnalyticsQueryDto } from './dto/analytics-query.dto';
 import { AnalyticsEvent } from './entities/analytics-event.entity';
 import {
@@ -13,18 +16,22 @@ import {
 } from './dto/analytics-response.dto';
 
 /**
- * Phase 6 Plans 01 + 02b: Analytics REST endpoints (DASH-05, DASH-01, DASH-02).
+ * Phase 6 Plans 01 + 02b + 03: Analytics REST endpoints (DASH-05, DASH-01, DASH-02).
  *
  * Plan 01: GET /events
  * Plan 02b: GET /overview, /performance, /cost, /conversations
+ * Plan 03: GET /export, GET /stream (SSE)
  *
- * All endpoints require OPERATOR role (T-06-01, T-06-06) to prevent unauthenticated access
+ * All endpoints require OPERATOR role (T-06-01, T-06-06, T-06-08) to prevent unauthenticated access
  * to analytics data containing chatId/userId and business metrics.
  */
 @ApiTags('analytics')
 @Controller('analytics')
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsEventsService) {}
+  constructor(
+    private readonly analyticsService: AnalyticsEventsService,
+    private readonly exportService: AnalyticsExportService,
+  ) {}
 
   /**
    * Get recent analytics events.
@@ -116,6 +123,62 @@ export class AnalyticsController {
       query.sessionId,
       query.page,
       query.limit || 20,
+    );
+  }
+
+  /**
+   * Export analytics events as CSV or JSON download.
+   *
+   * @param query - Query params (startDate, endDate, format)
+   * @param res - Express response for setting headers
+   */
+  @Get('export')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Export analytics events' })
+  @ApiResponse({ status: 200, description: 'CSV or JSON export' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
+  async exportEvents(@Query() query: AnalyticsQueryDto, @Res() res: Response): Promise<void> {
+    const startDate = query.startDate ? new Date(query.startDate) : this.getDefaultStartDate();
+    const endDate = query.endDate ? new Date(query.endDate) : new Date();
+    const format = (query.format as 'csv' | 'json') || 'csv';
+
+    const data = await this.exportService.exportEvents(startDate, endDate, format);
+
+    if (format === 'csv') {
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="analytics-export.csv"');
+      res.send(data);
+    } else {
+      res.setHeader('Content-Type', 'application/json');
+      res.json(data);
+    }
+  }
+
+  /**
+   * SSE stream for real-time KPI updates.
+   *
+   * Emits KPI snapshots every 10 seconds for dashboard consumption.
+   *
+   * @returns Observable of KPI snapshot events
+   */
+  @Sse('stream')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Real-time KPI stream (SSE)' })
+  @ApiResponse({ status: 200, description: 'Server-Sent Events stream' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
+  stream(): Observable<MessageEvent> {
+    // Emit KPI snapshot every 10 seconds
+    return interval(10000).pipe(
+      map(async () => {
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setUTCHours(startDate.getUTCHours() - 24); // Rolling 24h window
+
+        const snapshot = await this.analyticsService.getOverview(startDate, endDate);
+        return { data: snapshot } as MessageEvent;
+      }),
+      // Unwrap the Promise
+      map((promise) => promise as any),
     );
   }
 
