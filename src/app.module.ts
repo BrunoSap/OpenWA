@@ -1,6 +1,7 @@
 import { Module, DynamicModule, Type } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import * as fs from 'fs';
 import * as path from 'path';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -125,6 +126,9 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
       load: [configuration],
       validate: validateEnv,
     }),
+
+    // Event system
+    EventEmitterModule.forRoot(),
 
     // Main Database (always SQLite - boot config)
     TypeOrmModule.forRootAsync({
