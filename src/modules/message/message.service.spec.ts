@@ -472,6 +472,28 @@ describe('MessageService', () => {
         }),
       );
     });
+
+    it('should set expiresAt to createdAt + retention days (MEM-05)', async () => {
+      // Default retention is 90 days per RETENTION_DAYS_DEFAULT env (default 90)
+      const beforeSave = Date.now();
+      await service.saveIncomingMessage('sess-1', {
+        waMessageId: 'wa-in-2',
+        chatId: 'sender@c.us',
+        body: 'Test retention',
+        type: 'text',
+      });
+      const afterSave = Date.now();
+
+      const createCall = (repository.create as jest.Mock).mock.calls[0][0];
+      expect(createCall).toHaveProperty('expiresAt');
+
+      const expiresAt = createCall.expiresAt as Date;
+      const expectedMin = new Date(beforeSave + 90 * 86400000);
+      const expectedMax = new Date(afterSave + 90 * 86400000);
+
+      expect(expiresAt.getTime()).toBeGreaterThanOrEqual(expectedMin.getTime());
+      expect(expiresAt.getTime()).toBeLessThanOrEqual(expectedMax.getTime());
+    });
   });
 
   // ── reactToMessage / deleteMessage ────────────────────────────────
