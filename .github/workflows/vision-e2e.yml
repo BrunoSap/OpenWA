@@ -1,0 +1,127 @@
+name: Vision E2E Tests
+# Workflow validation: 2026-08-27 (Phase 4 Plan 04-03)
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'test/vision-*.e2e-spec.ts'
+      - 'test/support/vision-analyze.ts'
+      - 'test/fixtures/images/**'
+      - 'WhatsApp-Vision-Analysis.json'
+      - '.github/workflows/vision-e2e.yml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '22'
+
+permissions:
+  contents: read
+
+jobs:
+  vision-e2e:
+    name: Vision E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: openwa
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: openwa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U openwa"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wait for PostgreSQL
+        run: |
+          until pg_isready -h localhost -p 5432 -U openwa; do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+
+      - name: Create pgvector extension
+        run: |
+          PGPASSWORD=test_password psql -h localhost -U openwa -d openwa -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+      - name: Create schema_migrations table
+        run: |
+          PGPASSWORD=test_password psql -h localhost -U openwa -d openwa <<'SQL'
+          CREATE TABLE IF NOT EXISTS public.schema_migrations (
+              id BIGSERIAL PRIMARY KEY,
+              version VARCHAR(100) NOT NULL UNIQUE,
+              description VARCHAR(255),
+              applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+              execution_time_ms INT NOT NULL DEFAULT 0,
+              checksum VARCHAR(64),
+              CONSTRAINT schema_migrations_execution_time_check CHECK (execution_time_ms >= 0)
+          );
+          SQL
+
+      - name: Run database migrations
+        run: bash database/scripts/run_migrations_v2.sh
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: openwa
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: openwa
+
+      - name: Run Vision E2E tests
+        run: npm run test:e2e:vision
+        env:
+          NODE_ENV: test
+          DATABASE_TYPE: postgres
+          DATABASE_HOST: localhost
+          DATABASE_PORT: 5432
+          DATABASE_USERNAME: openwa
+          DATABASE_PASSWORD: test_password
+          DATABASE_NAME: openwa
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        # Note: Tests that require real Vision API calls (vision-e2e-accuracy.e2e-spec.ts,
+        # vision-e2e-cycle.e2e-spec.ts) skip gracefully when OPENAI_API_KEY is absent or test
+        # fixture images are missing. Workflow shape tests and fallback tests run deterministically
+        # always.
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
+        with:
+          name: vision-test-results
+          path: |
+            test-results/
+            coverage/
+          retention-days: 7

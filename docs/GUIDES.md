@@ -685,6 +685,120 @@ Ver arquivo: `Whatsapp-Unified-Multimodal-COMPLETE.json`
                     [Send Reply]
 ```
 
+### Custos e Rate Limits Vision
+
+#### Modelos e Preços (Dezembro 2024)
+
+| Modelo | Input (1M tokens) | Output (1M tokens) | Recomendado para |
+|--------|-------------------|-------------------|------------------|
+| **gpt-4o-mini** | $0.15 | $0.60 | Testes, protótipos, Volume alto |
+| **gpt-4o** | $2.50 | $10.00 | Produção, Alta precisão |
+| gpt-4-turbo | $10.00 | $30.00 | Legacy (não recomendado) |
+
+**Recomendação:** Use **gpt-4o-mini** para desenvolvimento e testes. A diferença de custo é 17x menor que gpt-4o, com qualidade adequada para a maioria dos casos de uso.
+
+#### Token Counting para Imagens
+
+A API Vision conta tokens de forma diferente dependendo do modo `detail`:
+
+**Low Detail (modo padrão para testes):**
+- **85 tokens fixos** por imagem, independente do tamanho
+- Use para testes E2E, desenvolvimento, prototipagem
+- Custo previsível e baixo
+
+**High Detail (produção):**
+- Base: 85 tokens
+- Adicional: **170 tokens por tile de 512x512px**
+- Imagem é redimensionada para caber em 2048x2048px preservando aspect ratio
+- Depois dividida em tiles de 512px
+- Exemplo: imagem 2048x2048px = 16 tiles = 85 + (16 × 170) = **2805 tokens**
+
+**Cálculo de tiles:**
+```javascript
+// Fórmula simplificada
+function calcularTiles(width, height) {
+  // Escalar para caber em 2048x2048
+  const scale = Math.min(2048 / width, 2048 / height);
+  const scaledW = Math.ceil(width * scale);
+  const scaledH = Math.ceil(height * scale);
+  
+  // Dividir em tiles 512x512
+  const tilesX = Math.ceil(scaledW / 512);
+  const tilesY = Math.ceil(scaledH / 512);
+  
+  return tilesX * tilesY;
+}
+
+// Exemplo
+const tiles = calcularTiles(1920, 1080); // = 8 tiles
+const tokens = 85 + (tiles * 170); // = 1445 tokens
+```
+
+#### Estimativa de Custo por Imagem
+
+**Low Detail (testes):**
+- 85 tokens × $0.15 / 1M = **$0.00001275** por imagem
+- ~78.000 imagens por $1 USD
+- Ideal para testes automatizados
+
+**High Detail (produção, imagem típica 1920x1080):**
+- ~1445 tokens × $0.15 / 1M = **$0.00021675** por imagem
+- ~4.600 imagens por $1 USD
+- Use quando precisar de OCR ou detalhes finos
+
+**High Detail (imagem grande 4096x4096):**
+- ~11,645 tokens × $0.15 / 1M = **$0.00175** por imagem
+- ~570 imagens por $1 USD
+- Evite em testes; redimensione antes de enviar
+
+#### Rate Limits (Tier 1 - Free/Novo)
+
+| Modelo | Requests/min | Tokens/min | Requests/dia |
+|--------|--------------|------------|--------------|
+| gpt-4o-mini | 500 | 200,000 | 10,000 |
+| gpt-4o | 500 | 30,000 | 10,000 |
+
+**Observação:** Rate limits aumentam conforme uso histórico (Tiers 2-5). Veja [OpenAI Rate Limits](https://platform.openai.com/docs/guides/rate-limits).
+
+#### Boas Práticas para Reduzir Custo
+
+1. **Use `detail: "low"` para testes E2E**
+   - Custo fixo de 85 tokens
+   - Suficiente para validar fluxo e lógica
+
+2. **Redimensione imagens grandes antes de enviar**
+   ```javascript
+   // Usar Sharp para redimensionar
+   await sharp(inputBuffer)
+     .resize(1024, 1024, { fit: 'inside' })
+     .toBuffer();
+   ```
+
+3. **Cache descrições de imagens fixas**
+   - Fixtures de teste não mudam
+   - Armazene descrição no fixture README
+   - Evite re-processar a mesma imagem
+
+4. **Use fixtures pequenos (<512px) nos testes**
+   - 1 tile = 85 + 170 = 255 tokens (high detail)
+   - Muito menor que imagens reais
+
+5. **Monitore custo em CI**
+   - Helper `analyzeImage` loga tokens usados
+   - Revise logs do GitHub Actions
+   - Suite de testes Phase 4 gasta ~$0.005 por run
+
+#### Custos Observados (Phase 4)
+
+Conforme medido nos testes E2E de Vision:
+
+- **Tracer test** (1 imagem, low detail): ~85 tokens = $0.00001275
+- **Accuracy test** (3 imagens, low detail): ~255 tokens = $0.00003825
+- **Full suite** (~10 imagens): ~850 tokens = **$0.00012750**
+- **CI run completo** (shape + tracer + accuracy + fallback): **<$0.001**
+
+**Conclusão:** Mesmo rodando testes Vision em todo PR, custo mensal de CI é desprezível (<$5/mês para 5000 PRs).
+
 ---
 
 ## Knowledge Base
