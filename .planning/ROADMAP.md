@@ -122,6 +122,7 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 **Verification:** ✅ **PASSED** — 10/10 truths verified (03-VERIFICATION.md)
 
 **Human validation completed (2026-08-26):**
+
 - ✅ Real MP3 audio fixtures from microphone recordings (PT-BR, EN)
 - ✅ All 16 tests passing with GROQ_API_KEY
 - ✅ Real metrics: 309-409ms latency (81-91% faster than target), 100% accuracy
@@ -155,9 +156,9 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 
 **Effort:** ~3-4 dias (workflow + integration + testes + docs)
 
-**Plans:** 3 plans (3 waves)
+**Plans:** 1/3 plans executed (3 waves)
 
-- [ ] 04-01-PLAN.md — Tracer E2E: imagem foto de produto → validação de formato → GPT-4 Vision (gpt-4o-mini) → descrição → LLM + custo logado (Wave 1)
+- [x] 04-01-PLAN.md — Tracer E2E: imagem foto de produto → validação de formato → GPT-4 Vision (gpt-4o-mini) → descrição → LLM + custo logado (Wave 1)
 - [ ] 04-02-PLAN.md — Expansão: casos documento/OCR + cena, acurácia via LLM-as-judge, fallback (Wave 2)
 - [ ] 04-03-PLAN.md — Workflow n8n WhatsApp-Vision-Analysis.json + shape test + CI/CD GitHub Actions + docs de custo em GUIDES.md (Wave 3)
 
@@ -168,6 +169,7 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 **Goal:** Implementar sistema de memória persistente além de Redis para histórico de conversas e aprendizado de padrões.
 
 **Why this matters:** Atualmente OpenWA usa apenas Redis para cache de curto prazo. Memória de longo prazo permite:
+
 - Histórico completo de conversas por usuário
 - Aprendizado de padrões de interação
 - Contexto acumulado entre sessões
@@ -202,6 +204,7 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 **Goal:** Dashboard de métricas de uso, performance de agentes e taxa de resolução.
 
 **Why this matters:** Visibilidade operacional essencial para:
+
 - Monitorar saúde do sistema (latências, erros, throughput)
 - Medir efetividade dos agentes (taxa de resolução, satisfação)
 - Identificar gargalos e oportunidades de otimização
