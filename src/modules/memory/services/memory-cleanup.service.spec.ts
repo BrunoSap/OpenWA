@@ -8,10 +8,12 @@ describe('MemoryCleanupService', () => {
   let service: MemoryCleanupService;
   let repository: jest.Mocked<Repository<Message>>;
   let dataSource: jest.Mocked<DataSource>;
+  let softDeleteQB: any;
+  let hardDeleteQB: any;
 
   beforeEach(async () => {
     // Mock query builder chain for soft delete
-    const softDeleteQB = {
+    softDeleteQB = {
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
@@ -20,7 +22,7 @@ describe('MemoryCleanupService', () => {
     };
 
     // Mock query builder chain for hard delete
-    const hardDeleteQB = {
+    hardDeleteQB = {
       delete: jest.fn().mockReturnThis(),
       from: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
@@ -28,14 +30,11 @@ describe('MemoryCleanupService', () => {
     };
 
     repository = {
-      createQueryBuilder: jest.fn()
-        .mockReturnValueOnce(softDeleteQB)
-        .mockReturnValueOnce(hardDeleteQB),
+      createQueryBuilder: jest.fn().mockReturnValue(softDeleteQB),
     } as unknown as jest.Mocked<Repository<Message>>;
 
     dataSource = {
-      createQueryBuilder: jest.fn()
-        .mockReturnValueOnce(hardDeleteQB),
+      createQueryBuilder: jest.fn().mockReturnValue(hardDeleteQB),
     } as unknown as jest.Mocked<DataSource>;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -51,21 +50,19 @@ describe('MemoryCleanupService', () => {
 
   describe('softDeleteExpired', () => {
     it('should soft-delete messages where expiresAt < now and deletedAt is null (MEM-05)', async () => {
-      const qb = repository.createQueryBuilder();
-      (qb.execute as jest.Mock).mockResolvedValue({ affected: 5 });
+      softDeleteQB.execute.mockResolvedValue({ affected: 5 });
 
       const result = await service.softDeleteExpired();
 
-      expect(qb.update).toHaveBeenCalledWith(Message);
-      expect(qb.set).toHaveBeenCalledWith({ deletedAt: expect.any(Function) });
-      expect(qb.where).toHaveBeenCalledWith('expiresAt < :now', { now: expect.any(Date) });
-      expect(qb.andWhere).toHaveBeenCalledWith('deletedAt IS NULL');
+      expect(softDeleteQB.update).toHaveBeenCalledWith(Message);
+      expect(softDeleteQB.set).toHaveBeenCalledWith({ deletedAt: expect.any(Function) });
+      expect(softDeleteQB.where).toHaveBeenCalledWith('expiresAt < :now', { now: expect.any(Date) });
+      expect(softDeleteQB.andWhere).toHaveBeenCalledWith('deletedAt IS NULL');
       expect(result).toBe(5);
     });
 
     it('should return 0 when no expired messages exist', async () => {
-      const qb = repository.createQueryBuilder();
-      (qb.execute as jest.Mock).mockResolvedValue({ affected: 0 });
+      softDeleteQB.execute.mockResolvedValue({ affected: 0 });
 
       const result = await service.softDeleteExpired();
 
@@ -75,22 +72,20 @@ describe('MemoryCleanupService', () => {
 
   describe('hardDeleteOldSoftDeletes', () => {
     it('should hard-delete rows whose deletedAt is older than 90-day grace period (MEM-05)', async () => {
-      const qb = dataSource.createQueryBuilder();
-      (qb.execute as jest.Mock).mockResolvedValue({ affected: 3 });
+      hardDeleteQB.execute.mockResolvedValue({ affected: 3 });
 
       const result = await service.hardDeleteOldSoftDeletes();
 
-      expect(qb.delete).toHaveBeenCalled();
-      expect(qb.from).toHaveBeenCalledWith(Message);
-      expect(qb.where).toHaveBeenCalledWith('deletedAt < :graceThreshold', {
+      expect(hardDeleteQB.delete).toHaveBeenCalled();
+      expect(hardDeleteQB.from).toHaveBeenCalledWith(Message);
+      expect(hardDeleteQB.where).toHaveBeenCalledWith('deletedAt < :graceThreshold', {
         graceThreshold: expect.any(Date),
       });
       expect(result).toBe(3);
     });
 
     it('should return 0 when no old soft-deleted rows exist', async () => {
-      const qb = dataSource.createQueryBuilder();
-      (qb.execute as jest.Mock).mockResolvedValue({ affected: 0 });
+      hardDeleteQB.execute.mockResolvedValue({ affected: 0 });
 
       const result = await service.hardDeleteOldSoftDeletes();
 
@@ -100,8 +95,7 @@ describe('MemoryCleanupService', () => {
 
   describe('audit logging (T-05-09)', () => {
     it('should log affected count and oldest deleted timestamp on soft delete', async () => {
-      const qb = repository.createQueryBuilder();
-      (qb.execute as jest.Mock).mockResolvedValue({ affected: 5 });
+      softDeleteQB.execute.mockResolvedValue({ affected: 5 });
 
       const loggerSpy = jest.spyOn(service['logger'], 'log');
 
@@ -113,8 +107,7 @@ describe('MemoryCleanupService', () => {
     });
 
     it('should log affected count on hard delete', async () => {
-      const qb = dataSource.createQueryBuilder();
-      (qb.execute as jest.Mock).mockResolvedValue({ affected: 3 });
+      hardDeleteQB.execute.mockResolvedValue({ affected: 3 });
 
       const loggerSpy = jest.spyOn(service['logger'], 'log');
 
