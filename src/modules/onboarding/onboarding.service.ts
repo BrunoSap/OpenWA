@@ -133,7 +133,7 @@ export class OnboardingService {
       case 'whatsapp':
         // Validate at least one session is in 'ready' status
         try {
-          const sessions = await this.sessionService.findAll({ limit: 100 });
+          const sessions = await this.sessionService.findAll(null, { limit: 100 });
           const hasReadySession = sessions.some((session) => session.status === SessionStatus.READY);
           this.logger.debug(`WhatsApp step validation for tenant ${tenantId}: ${hasReadySession}`);
           return hasReadySession;

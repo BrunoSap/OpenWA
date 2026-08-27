@@ -167,6 +167,7 @@ describe('OnboardingService', () => {
 
       const result = await service.validateStepCompletion('tenant-id', 'whatsapp');
       expect(result).toBe(true);
+      expect(mockSessionService.findAll).toHaveBeenCalledWith(null, { limit: 100 });
     });
 
     it('should fail for whatsapp step if no ready session', async () => {
