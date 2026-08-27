@@ -29,6 +29,7 @@ Toda a documentação foi consolidada em arquivos temáticos:
 
 | Documento | Conteúdo |
 |-----------|----------|
+| **[PROGRESS.md](docs/PROGRESS.md)** | 📊 **Progresso executivo** - O que foi entregue, o que está em progresso, roadmap visual |
 | **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** | Arquitetura global, Unified Bot, Bot de Intake, análise de gaps |
 | **[SETUP.md](docs/SETUP.md)** | Instalação, configuração, deploy, plugins, stack completa |
 | **[GUIDES.md](docs/GUIDES.md)** | Atendimento WhatsApp + LLM, telefonia/voz, multimodal, KB, system prompts |
