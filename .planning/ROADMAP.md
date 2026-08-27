@@ -273,6 +273,7 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 **Deliverables:**
 
 **Wave 1: Grafana MVP (Quick Win)**
+
 - Grafana dashboards consuming 10 REST endpoints from Phase 6
 - Prometheus data source integration (alerts.yml visualization)
 - 4 dashboard panels: Overview KPIs, Performance metrics, Cost breakdown, Conversations funnel
@@ -280,6 +281,7 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 - JSON API data source configuration
 
 **Wave 2: React SPA (Custom Dashboard)**
+
 - React + TypeScript SPA with design system (Tailwind/MUI)
 - Real-time updates via SSE stream (10s refresh)
 - 4 main views: Overview (cards KPI), Performance (latency charts), Cost (breakdown por feature), Conversations (funnel)
@@ -292,11 +294,13 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 **Success Criteria:**
 
 **Grafana MVP:**
+
 - ✅ Grafana dashboards deployed and accessible
 - ✅ All 10 REST endpoints visualized
 - ✅ Prometheus alerts visible in Grafana
 
 **React SPA:**
+
 - ✅ Dashboard loads in <2s
 - ✅ Real-time metrics update every 10s via SSE
 - ✅ Alert notifications displayed prominently with actions
@@ -306,12 +310,14 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 - ✅ E2E tests cover all user flows
 
 **Approach:** Dual-track implementation (both Grafana + React)
+
 - Grafana provides immediate operational visibility
 - React SPA delivers custom UX and feature richness
 
 **Dependencies:** Phase 6 (analytics backend complete ✅)
 
 **Effort:** 
+
 - Grafana MVP: ~2h (configuration only) - Wave 1
 - React SPA: ~3-5 days (design + implementation + tests) - Wave 2
 - **Total:** ~3-5 days (waves can overlap)
@@ -329,6 +335,7 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 **Goal:** Preparar plataforma para alto volume e alta disponibilidade — multi-replica support, health checks, distributed state, graceful shutdown.
 
 **Why this matters:** Single-instance deployment é SPOF. Production workloads exigem:
+
 - Alta disponibilidade (99.5%+ uptime)
 - Horizontal scaling (3+ replicas)
 - Zero-downtime deployments
@@ -337,24 +344,28 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 **Deliverables:**
 
 ### 8.1. Multi-Replica Support (Wave 1)
+
 - 2 replicas da API + nginx load balancer
 - Sticky sessions via ip_hash
 - Health checks expandidos (Redis + Engine indicators)
 - Testes E2E validando affinity
 
 ### 8.2. Shared Storage & Distributed State (Wave 2)
+
 - NFS volume para WhatsApp profiles compartilhados
 - 3+ replicas processando jobs (BullMQ distributed)
 - WebSocket fan-out cross-replica (Redis pub/sub)
 - Testes E2E validando persistence cross-replica
 
 ### 8.3. Observability & Monitoring (Wave 3)
+
 - Distributed tracing (OpenTelemetry + Jaeger)
 - SLO/SLI definitions (uptime 99.5%, latency p95 <500ms, error rate <1%)
 - Prometheus alerting rules (ReplicaDown, Unhealthy, LoadImbalance, SLO violations)
 - Grafana dashboard multi-replica visualization
 
 ### 8.4. Production Deployment (Wave 4)
+
 - DEPLOYMENT.md completo (prerequisites, rolling update, rollback, DR)
 - Rolling update script (zero-downtime)
 - Smoke test automation (7 critical checks)
@@ -376,8 +387,8 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 
 **Plans:** 4 plans
 
-- [ ] 08-01-PLAN.md — Tracer: 2 replicas + nginx sticky + health checks (Redis + Engine indicators) (Wave 1)
-- [ ] 08-02-PLAN.md — Expansion: NFS shared storage + 3+ replicas + distributed workers/WebSocket (Wave 2)
+- [x] 08-01-PLAN.md — Tracer: 2 replicas + nginx sticky + health checks (Redis + Engine indicators) (Wave 1)
+- [x] 08-02-PLAN.md — Expansion: NFS shared storage + 3+ replicas + distributed workers/WebSocket (Wave 2)
 - [ ] 08-03-PLAN.md — Observability: OpenTelemetry tracing + Prometheus alerts + SLO/SLI + Grafana dashboard (Wave 3)
 - [ ] 08-04-PLAN.md — Production: DEPLOYMENT.md + rolling update script + smoke tests (Wave 4)
 
