@@ -20,7 +20,7 @@
             "refId": "A"
           }
         ],
-        "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+        "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
         "fieldConfig": {
           "defaults": {
             "unit": "percentunit",
@@ -33,6 +33,288 @@
               ]
             }
           }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Fallback Rate",
+        "type": "stat",
+        "datasource": "OpenWA Analytics API",
+        "targets": [
+          {
+            "target": "overview.kpis.fallbackRate",
+            "refId": "A"
+          }
+        ],
+        "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 0.1 },
+                { "color": "red", "value": 0.15 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Cost Per Conversation",
+        "type": "stat",
+        "datasource": "OpenWA Analytics API",
+        "targets": [
+          {
+            "target": "overview.kpis.costPerConversation",
+            "refId": "A"
+          }
+        ],
+        "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "decimals": 3
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Daily Active Users",
+        "type": "stat",
+        "datasource": "OpenWA Analytics API",
+        "targets": [
+          {
+            "target": "overview.kpis.dau",
+            "refId": "A"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Monthly Active Users",
+        "type": "stat",
+        "datasource": "OpenWA Analytics API",
+        "targets": [
+          {
+            "target": "overview.kpis.mau",
+            "refId": "A"
+          }
+        ],
+        "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "OpenWA Alerts",
+        "type": "alertlist",
+        "datasource": "Prometheus",
+        "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+        "options": {
+          "showOptions": "current",
+          "maxItems": 10,
+          "sortOrder": 1,
+          "dashboardAlerts": false,
+          "alertName": "",
+          "dashboardTitle": "",
+          "tags": [],
+          "stateFilter": {
+            "firing": true,
+            "pending": true,
+            "noData": false,
+            "normal": false,
+            "error": true
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Latency Percentiles (API)",
+        "type": "graph",
+        "datasource": "OpenWA Analytics API",
+        "targets": [
+          {
+            "target": "performance.latency.p50",
+            "refId": "A"
+          },
+          {
+            "target": "performance.latency.p95",
+            "refId": "B"
+          },
+          {
+            "target": "performance.latency.p99",
+            "refId": "C"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+        "yaxes": [
+          {
+            "format": "ms",
+            "label": "Latency",
+            "show": true
+          },
+          {
+            "show": false
+          }
+        ],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "legend": {
+          "show": true,
+          "values": true,
+          "current": true,
+          "avg": true,
+          "max": true
+        }
+      },
+      {
+        "id": 8,
+        "title": "Latency Percentiles (Prometheus Histogram)",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum(rate(analytics_message_latency_bucket[5m])) by (le))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(analytics_message_latency_bucket[5m])) by (le))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(analytics_message_latency_bucket[5m])) by (le))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+        "yaxes": [
+          {
+            "format": "ms",
+            "label": "Latency",
+            "show": true
+          },
+          {
+            "show": false
+          }
+        ],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "legend": {
+          "show": true,
+          "values": true,
+          "current": true,
+          "avg": true,
+          "max": true
+        }
+      },
+      {
+        "id": 9,
+        "title": "Cost Breakdown",
+        "type": "piechart",
+        "datasource": "OpenWA Analytics API",
+        "targets": [
+          {
+            "target": "cost.breakdown",
+            "refId": "A"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 12, "w": 8, "h": 8 },
+        "options": {
+          "pieType": "pie",
+          "displayLabels": ["name", "percent"],
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "values": ["value", "percent"]
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Total Cost",
+        "type": "stat",
+        "datasource": "OpenWA Analytics API",
+        "targets": [
+          {
+            "target": "cost.total",
+            "refId": "A"
+          }
+        ],
+        "gridPos": { "x": 8, "y": 12, "w": 4, "h": 8 },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 25 },
+                { "color": "red", "value": 50 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "Conversations",
+        "type": "table",
+        "datasource": "OpenWA Analytics API",
+        "targets": [
+          {
+            "target": "conversations.data",
+            "refId": "A"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+        "options": {
+          "showHeader": true,
+          "sortBy": [
+            {
+              "displayName": "started_at",
+              "desc": true
+            }
+          ]
+        },
+        "fieldConfig": {
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "cost" },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "currencyUSD"
+                }
+              ]
+            },
+            {
+              "matcher": { "id": "byName", "options": "avg_latency" },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "ms"
+                }
+              ]
+            }
+          ]
         }
       }
     ]
