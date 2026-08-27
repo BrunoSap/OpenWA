@@ -5,12 +5,16 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { AnalyticsEvent } from './entities/analytics-event.entity';
 import { AnalyticsAggregate } from './entities/analytics-aggregate.entity';
+import { AnalyticsAlertRule } from './entities/analytics-alert-rule.entity';
 import { AnalyticsEventsService } from './services/analytics-events.service';
 import { AnalyticsAggregationService } from './services/analytics-aggregation.service';
 import { AnalyticsExportService } from './services/analytics-export.service';
+import { AnalyticsAlertService } from './services/analytics-alert.service';
+import { AlertDispatchService } from './services/alert-dispatch.service';
 import { AnalyticsEventListener } from './listeners/analytics-event.listener';
 import { AnalyticsAggregationProcessor } from './processors/analytics-aggregation.processor';
 import { AnalyticsCleanupProcessor } from './processors/analytics-cleanup.processor';
+import { AnalyticsAlertProcessor } from './processors/analytics-alert.processor';
 import { AnalyticsController } from './analytics.controller';
 import { QUEUE_NAMES } from '../queue/queue-names';
 import { createLogger } from '../../common/services/logger.service';
@@ -20,18 +24,19 @@ import { createLogger } from '../../common/services/logger.service';
  *
  * Plan 01: Event collection (analytics_events) via EventEmitter2 listeners.
  * Plan 02b: Daily aggregation (analytics_aggregates) and retention cleanup via BullMQ.
- * Plan 03: Export service + SSE stream for dashboard.
+ * Plan 03: Export service + SSE stream + alert rules + dispatch.
  *
- * Wires both entities on the 'data' connection. Registers the ANALYTICS queue and enqueues
- * two repeatable jobs at module init:
+ * Wires three entities on the 'data' connection. Registers the ANALYTICS queue and enqueues
+ * three repeatable jobs at module init:
  * - Aggregation job: daily at 1 AM (computes yesterday's KPIs)
  * - Cleanup job: daily at 2 AM (deletes raw events older than ANALYTICS_RETENTION_DAYS)
+ * - Alert evaluation job: every 5 minutes (evaluates alert rules and dispatches notifications)
  *
  * Uses BullMQ repeatable jobs, NOT @nestjs/schedule (not installed).
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([AnalyticsEvent, AnalyticsAggregate], 'data'),
+    TypeOrmModule.forFeature([AnalyticsEvent, AnalyticsAggregate, AnalyticsAlertRule], 'data'),
     BullModule.registerQueue({
       name: QUEUE_NAMES.ANALYTICS,
       defaultJobOptions: {
@@ -45,9 +50,12 @@ import { createLogger } from '../../common/services/logger.service';
     AnalyticsEventsService,
     AnalyticsAggregationService,
     AnalyticsExportService,
+    AnalyticsAlertService,
+    AlertDispatchService,
     AnalyticsEventListener,
     AnalyticsAggregationProcessor,
     AnalyticsCleanupProcessor,
+    AnalyticsAlertProcessor,
   ],
   exports: [AnalyticsEventsService, AnalyticsAggregationService],
 })
@@ -87,5 +95,19 @@ export class AnalyticsModule implements OnModuleInit {
     );
 
     this.logger.log('Analytics cleanup repeatable job registered (daily at 2 AM)');
+
+    // Enqueue repeatable job for alert evaluation every 5 minutes
+    await this.analyticsQueue.add(
+      'alert-evaluation',
+      {},
+      {
+        repeat: {
+          pattern: '*/5 * * * *', // Every 5 minutes (cron format)
+        },
+        jobId: 'analytics-alert-evaluation-repeatable',
+      } as any,
+    );
+
+    this.logger.log('Analytics alert evaluation repeatable job registered (every 5 minutes)');
   }
 }

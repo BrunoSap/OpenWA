@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Res, Sse } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Query, Param, Body, Res, Sse } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Response } from 'express';
 import { interval, map, Observable } from 'rxjs';
@@ -6,23 +6,27 @@ import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
 import { AnalyticsEventsService } from './services/analytics-events.service';
 import { AnalyticsExportService } from './services/analytics-export.service';
+import { AnalyticsAlertService } from './services/analytics-alert.service';
 import { AnalyticsQueryDto } from './dto/analytics-query.dto';
 import { AnalyticsEvent } from './entities/analytics-event.entity';
+import { AnalyticsAlertRule } from './entities/analytics-alert-rule.entity';
 import {
   AnalyticsOverviewResponse,
   AnalyticsPerformanceResponse,
   AnalyticsCostResponse,
   AnalyticsConversationsResponse,
 } from './dto/analytics-response.dto';
+import { Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
 
 /**
  * Phase 6 Plans 01 + 02b + 03: Analytics REST endpoints (DASH-05, DASH-01, DASH-02).
  *
  * Plan 01: GET /events
  * Plan 02b: GET /overview, /performance, /cost, /conversations
- * Plan 03: GET /export, GET /stream (SSE)
+ * Plan 03: GET /export, GET /stream (SSE), GET|POST|DELETE /alerts/rules
  *
- * All endpoints require OPERATOR role (T-06-01, T-06-06, T-06-08) to prevent unauthenticated access
+ * All endpoints require OPERATOR role (T-06-01, T-06-06, T-06-08, T-06-10) to prevent unauthenticated access
  * to analytics data containing chatId/userId and business metrics.
  */
 @ApiTags('analytics')
@@ -31,6 +35,8 @@ export class AnalyticsController {
   constructor(
     private readonly analyticsService: AnalyticsEventsService,
     private readonly exportService: AnalyticsExportService,
+    @InjectRepository(AnalyticsAlertRule, 'data')
+    private readonly alertRuleRepository: Repository<AnalyticsAlertRule>,
   ) {}
 
   /**
@@ -180,6 +186,50 @@ export class AnalyticsController {
       // Unwrap the Promise
       map((promise) => promise as any),
     );
+  }
+
+  /**
+   * Get all alert rules.
+   *
+   * @returns Array of alert rules
+   */
+  @Get('alerts/rules')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Get alert rules' })
+  @ApiResponse({ status: 200, description: 'Alert rules', type: [AnalyticsAlertRule] })
+  @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
+  async getAlertRules(): Promise<AnalyticsAlertRule[]> {
+    return this.alertRuleRepository.find({ order: { created_at: 'DESC' } });
+  }
+
+  /**
+   * Create a new alert rule.
+   *
+   * @param body - Alert rule data
+   * @returns Created alert rule
+   */
+  @Post('alerts/rules')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Create alert rule' })
+  @ApiResponse({ status: 201, description: 'Alert rule created', type: AnalyticsAlertRule })
+  @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
+  async createAlertRule(@Body() body: Partial<AnalyticsAlertRule>): Promise<AnalyticsAlertRule> {
+    const rule = this.alertRuleRepository.create(body);
+    return this.alertRuleRepository.save(rule);
+  }
+
+  /**
+   * Delete an alert rule.
+   *
+   * @param id - Rule ID
+   */
+  @Delete('alerts/rules/:id')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Delete alert rule' })
+  @ApiResponse({ status: 200, description: 'Alert rule deleted' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
+  async deleteAlertRule(@Param('id') id: string): Promise<void> {
+    await this.alertRuleRepository.delete(id);
   }
 
   /**
