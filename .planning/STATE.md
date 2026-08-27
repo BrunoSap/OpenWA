@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
 status: in_progress
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-08-27T07:07:00.565Z"
-state_head: 85b0521919e029fdade4eb093b813e0211722155
+stopped_at: Completed 08-03-PLAN.md
+last_updated: "2026-08-27T07:27:08.524Z"
+state_head: e23c32d90767bcb13050dcc97d0f926db062052e
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 30
-  completed_plans: 27
+  completed_plans: 29
   percent: 13
 ---
 
@@ -453,6 +453,8 @@ MASTER_API_KEY=xxx
 | Phase 06 P02b | 8 | 3 tasks | 14 files |
 | Phase 07 P01 | 11 | 3 tasks | 7 files |
 | Phase 08 P01 | 8 | 3 tasks | 8 files |
+| Phase 08 P02 | 5 | 3 tasks | 6 files |
+| Phase 08 P03 | 6 | 3 tasks | 8 files |
 
 ## Decisions
 
@@ -479,9 +481,12 @@ MASTER_API_KEY=xxx
 - [Phase ?]: Use nginx ip_hash for sticky sessions (OSS-native, transparent)
 - [Phase ?]: Split Docker Compose into default and scale-2 profiles for opt-in scaling
 - [Phase ?]: Add Redis/Engine custom health indicators to readiness probe
+- [Phase ?]: Use OpenTelemetry over vendor-specific APM for vendor-neutral tracing
+- [Phase ?]: Define SLOs as 99.5% uptime, p95 <500ms, <1% error rate
+- [Phase ?]: Use HOSTNAME env var for replica identification in traces
 
 ## Session
 
-**Last session:** 2026-08-27T07:07:00.319Z
-**Stopped at:** Completed 08-01-PLAN.md
+**Last session:** 2026-08-27T07:27:08.295Z
+**Stopped at:** Completed 08-03-PLAN.md
 **Resume file:** None
