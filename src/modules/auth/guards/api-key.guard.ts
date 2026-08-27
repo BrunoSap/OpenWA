@@ -2,6 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, Forbi
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
+import { ClsService } from 'nestjs-cls';
 import { AuthService } from '../auth.service';
 import { ApiKeyRole } from '../entities/api-key.entity';
 import { REQUIRED_ROLE_KEY, PUBLIC_KEY, SESSION_SCOPED_KEY, UNSCOPED_KEY } from '../decorators/auth.decorators';
@@ -9,6 +10,7 @@ import { resolveClientIp } from '../../../common/utils/ip';
 import { setRequestActor } from '../../../common/services/request-context';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
+import { LEGACY_TENANT_ID } from '../../../common/constants';
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
@@ -17,6 +19,7 @@ export class ApiKeyGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly configService: ConfigService,
     private readonly auditService: AuditService,
+    private readonly cls: ClsService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -75,6 +78,11 @@ export class ApiKeyGuard implements CanActivate {
 
     // Validate API key
     const apiKey = await this.authService.validateApiKey(apiKeyHeader, clientIp, sessionId);
+
+    // Set tenant context in ClsService for downstream services
+    // This ensures tenantId is available in AsyncLocalStorage for the entire request lifecycle
+    const tenantId = apiKey.tenantId || LEGACY_TENANT_ID;
+    this.cls.set('tenantId', tenantId);
 
     // Stamp the resolved actor into the per-request async context so downstream audit log writes —
     // which fire from services deep in the call stack without DI access to the key — can attribute

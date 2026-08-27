@@ -1,4 +1,5 @@
 import { Module, DynamicModule, Type } from '@nestjs/common';
+import { MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -52,6 +53,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { LLMModule } from './modules/llm/llm.module';
 import { TenantContextModule } from './common/tenant/tenant-context.module';
 import { TenantModule } from './modules/tenant/tenant.module';
+import { TenantContextMiddleware } from './common/tenant/tenant-context.middleware';
 import { SqlitePermissionsBoot } from './database/sqlite-file-permissions';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
@@ -349,4 +351,10 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
   // files that better-sqlite3 created with umask permissions back to owner-only.
   providers: [SqlitePermissionsBoot],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    // Register TenantContextMiddleware for all routes
+    // This middleware runs AFTER ApiKeyGuard and provides belt-and-suspenders tenant context
+    consumer.apply(TenantContextMiddleware).forRoutes('*');
+  }
+}
