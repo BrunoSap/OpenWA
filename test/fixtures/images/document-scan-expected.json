@@ -1,0 +1,15 @@
+{
+  "imageFile": "document-scan.jpg",
+  "format": "jpeg",
+  "sizeBytes": 45000,
+  "expectedDescription": "Documento de texto contendo informações sobre 'OpenWA WhatsApp Platform' e instruções de configuração. O texto menciona 'API Key', 'Webhook URL' e passos de instalação.",
+  "minSimilarity": 0.7,
+  "visualElements": [
+    "documento",
+    "texto",
+    "OpenWA",
+    "API Key",
+    "Webhook",
+    "configuração"
+  ]
+}

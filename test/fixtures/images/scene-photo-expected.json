@@ -1,0 +1,15 @@
+{
+  "imageFile": "scene-photo.jpg",
+  "format": "jpeg",
+  "sizeBytes": 52000,
+  "expectedDescription": "Ambiente de escritório moderno com mesa de trabalho, computador laptop aberto, mouse, teclado, e uma xícara de café. Iluminação natural vinda de janela ao fundo.",
+  "minSimilarity": 0.7,
+  "visualElements": [
+    "escritório",
+    "mesa",
+    "laptop",
+    "computador",
+    "café",
+    "iluminação natural"
+  ]
+}

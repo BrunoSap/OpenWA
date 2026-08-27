@@ -8,10 +8,29 @@ This directory contains image fixtures for testing the GPT-4 Vision integration.
 
 - **Format**: JPEG
 - **Resolution**: ~800x600 pixels
-- **Size**: ~45KB (< 500KB for fast testing)
+- **Size**: ~8KB (< 500KB for fast testing)
 - **Source**: Public domain image from Unsplash (https://unsplash.com/license)
 - **Content**: Modern smartphone with triple camera on white surface
 - **Purpose**: Tests VIS-01 (image acquisition), VIS-02 (format validation), VIS-03 (Vision API analysis), VIS-08 (latency), VIS-10 (cost tracking)
+
+### document-scan.jpg
+
+- **Format**: JPEG
+- **Resolution**: ~1024x768 pixels
+- **Size**: ~45KB (< 500KB for fast testing)
+- **Source**: Placeholder (executor should provide real document/receipt/text image)
+- **Content**: Document with visible text about "OpenWA" configuration (API Key, Webhook)
+- **Purpose**: Tests VIS-06 (document/OCR case), VIS-09 (LLM-as-judge semantic validation)
+- **Note**: May use `detail: 'high'` if OCR accuracy requires it
+
+### scene-photo.jpg
+
+- **Format**: JPEG
+- **Resolution**: ~1024x768 pixels
+- **Size**: ~52KB (< 500KB for fast testing)
+- **Source**: Placeholder (executor should provide real office/environment scene)
+- **Content**: Modern office workspace with laptop, coffee, natural lighting
+- **Purpose**: Tests VIS-07 (scene/environment case), VIS-09 (LLM-as-judge semantic validation)
 
 ## Environment Setup
 
