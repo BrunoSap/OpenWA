@@ -3,4 +3,5 @@
 export const QUEUE_NAMES = {
   WEBHOOK: 'webhook-queue',
   INGRESS: 'ingress-queue',
+  SUMMARIZATION: 'summarization-queue',
 } as const;
