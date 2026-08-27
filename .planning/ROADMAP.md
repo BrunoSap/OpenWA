@@ -203,6 +203,12 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 
 **Effort:** ~5-7 dias (schema + service + integration + policies + testes)
 
+**Plans:** 3 plans (3 waves)
+
+- [ ] 05-01-PLAN.md — Tracer E2E: colunas de memória em `messages` + módulo memory + recall (persist→recall cross-session) (Wave 1)
+- [ ] 05-02-PLAN.md — Expansão: summaries + job de sumarização BullMQ + buildLLMContext + API de histórico/contexto (Wave 2)
+- [ ] 05-03-PLAN.md — Retenção configurável (30/90/365) soft+hard delete + suite E2E (recall <200ms) + CI/CD + docs (Wave 3)
+
 ---
 
 ## Phase 6: Analytics Dashboard 🎯
