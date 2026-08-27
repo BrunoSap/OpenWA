@@ -303,12 +303,23 @@ export class MessageService {
 
   /**
    * Save incoming message (called from session webhook dispatch)
+   *
+   * Phase 5: Populates memory fields (userId, conversationId) for long-term recall.
    */
   async saveIncomingMessage(sessionId: string, data: Partial<Message>): Promise<Message> {
+    // Phase 5: Populate memory fields for conversation recall (MEM-01)
+    // userId: sender identity (author for group messages, from for 1:1)
+    const userId = data.author ?? data.from;
+    // conversationId: daily thread grouping key `${chatId}:${YYYY-MM-DD}` in UTC
+    const conversationId = data.chatId ? `${data.chatId}:${new Date().toISOString().slice(0, 10)}` : undefined;
+
     const message = this.messageRepository.create({
       ...data,
       sessionId,
       direction: MessageDirection.INCOMING,
+      userId,
+      conversationId,
+      // expiresAt and deletedAt remain unset here (Plan 03 owns retention)
     });
     return this.messageRepository.save(message);
   }
