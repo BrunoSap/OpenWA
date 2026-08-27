@@ -43,7 +43,7 @@ export class LLMService {
     try {
       this.eventEmitter.emit('llm.called', payload);
     } catch (error) {
-      this.logger.error('Failed to emit llm.called event', error);
+      this.logger.error('Failed to emit llm.called event', (error as Error)?.stack);
     }
   }
 

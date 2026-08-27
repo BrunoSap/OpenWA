@@ -67,7 +67,7 @@ export class AnalyticsEventListener {
       });
     } catch (error) {
       // Log but don't throw — analytics failures should not break message processing
-      this.logger.error('Failed to record message.processed event', error);
+      this.logger.error('Failed to record message.processed event', (error as Error)?.stack);
     }
   }
 
@@ -97,7 +97,7 @@ export class AnalyticsEventListener {
         payload: {},
       });
     } catch (error) {
-      this.logger.error('Failed to record conversation.started event', error);
+      this.logger.error('Failed to record conversation.started event', (error as Error)?.stack);
     }
   }
 
@@ -127,7 +127,7 @@ export class AnalyticsEventListener {
         payload: {},
       });
     } catch (error) {
-      this.logger.error('Failed to record conversation.resolved event', error);
+      this.logger.error('Failed to record conversation.resolved event', (error as Error)?.stack);
     }
   }
 
@@ -157,7 +157,7 @@ export class AnalyticsEventListener {
         payload: {},
       });
     } catch (error) {
-      this.logger.error('Failed to record conversation.escalated event', error);
+      this.logger.error('Failed to record conversation.escalated event', (error as Error)?.stack);
     }
   }
 
@@ -196,10 +196,10 @@ export class AnalyticsEventListener {
 
       await this.analyticsService.recordEvent({
         event_type: 'llm.called',
-        session_id: payload.sessionId || null,
-        chat_id: payload.chatId || null,
-        user_id: payload.userId || null,
-        conversation_id: payload.conversationId || null,
+        session_id: payload.sessionId,
+        chat_id: payload.chatId,
+        user_id: payload.userId,
+        conversation_id: payload.conversationId,
         latency_ms: payload.latency_ms,
         tokens_used: tokensUsed,
         cost_usd: costUsd,
@@ -212,7 +212,7 @@ export class AnalyticsEventListener {
         },
       });
     } catch (error) {
-      this.logger.error('Failed to record llm.called event', error);
+      this.logger.error('Failed to record llm.called event', (error as Error)?.stack);
     }
   }
 
@@ -237,17 +237,17 @@ export class AnalyticsEventListener {
     try {
       await this.analyticsService.recordEvent({
         event_type: 'fallback.triggered',
-        session_id: payload.sessionId || null,
-        chat_id: payload.chatId || null,
-        user_id: payload.userId || null,
-        conversation_id: payload.conversationId || null,
+        session_id: payload.sessionId,
+        chat_id: payload.chatId,
+        user_id: payload.userId,
+        conversation_id: payload.conversationId,
         payload: {
           stage: payload.stage,
           reason: payload.reason,
         },
       });
     } catch (error) {
-      this.logger.error('Failed to record fallback.triggered event', error);
+      this.logger.error('Failed to record fallback.triggered event', (error as Error)?.stack);
     }
   }
 }
