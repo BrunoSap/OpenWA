@@ -22,12 +22,16 @@ import { IntentTaxonomyDto } from './dto/intent-taxonomy.dto';
 import { FunnelQueryDto } from './dto/funnel-query.dto';
 import { FunnelResponseDto } from './dto/funnel-response.dto';
 import { ABExperimentDto } from './dto/ab-experiment.dto';
+import { SatisfactionQueryDto } from './dto/satisfaction-query.dto';
+import { SatisfactionResponseDto } from './dto/satisfaction-response.dto';
 import { AnalyticsIntentClassification } from './entities/analytics-intent-classification.entity';
 import { AnalyticsIntentTaxonomy } from './entities/analytics-intent-taxonomy.entity';
 import { AnalyticsIntentRoutingRule } from './entities/analytics-intent-routing-rule.entity';
 import { AnalyticsABExperiment } from './entities/analytics-ab-experiment.entity';
+import { AnalyticsSatisfactionResponse } from './entities/analytics-satisfaction-response.entity';
 import { FunnelAnalyticsService } from './services/funnel-analytics.service';
 import { ABTestingService } from './services/ab-testing.service';
+import { SatisfactionSurveyService } from './services/satisfaction-survey.service';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 
@@ -53,6 +57,7 @@ export class AnalyticsController {
     private readonly exportService: AnalyticsExportService,
     private readonly funnelAnalyticsService: FunnelAnalyticsService,
     private readonly abTestingService: ABTestingService,
+    private readonly satisfactionSurveyService: SatisfactionSurveyService,
     @InjectRepository(AnalyticsAlertRule, 'data')
     private readonly alertRuleRepository: Repository<AnalyticsAlertRule>,
     @InjectRepository(AnalyticsIntentClassification, 'data')
@@ -63,6 +68,10 @@ export class AnalyticsController {
     private readonly intentRoutingRuleRepository: Repository<AnalyticsIntentRoutingRule>,
     @InjectRepository(AnalyticsABExperiment, 'data')
     private readonly experimentRepository: Repository<AnalyticsABExperiment>,
+    @InjectRepository(AnalyticsSatisfactionResponse, 'data')
+    private readonly satisfactionResponseRepository: Repository<AnalyticsSatisfactionResponse>,
+    @InjectRepository(AnalyticsEvent, 'data')
+    private readonly analyticsEventRepository: Repository<AnalyticsEvent>,
   ) {}
 
   /**
@@ -617,6 +626,134 @@ export class AnalyticsController {
     if (body.variant_names) experiment.variant_names = body.variant_names;
 
     return this.experimentRepository.save(experiment);
+  }
+
+  /**
+   * Get satisfaction metrics (NPS, CSAT, correlation).
+   * Phase 10 Plan 03 Task 3.
+   *
+   * @param query - Date range filter
+   * @returns NPS, CSAT, and correlation metrics
+   */
+  @Get('satisfaction')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Get satisfaction metrics (NPS, CSAT, correlation)' })
+  @ApiResponse({ status: 200, description: 'Satisfaction metrics', type: SatisfactionResponseDto })
+  async getSatisfaction(@Query() query: SatisfactionQueryDto): Promise<SatisfactionResponseDto> {
+    const startDate = query.startDate ? new Date(query.startDate) : this.getDefaultStartDate();
+    const endDate = query.endDate ? new Date(query.endDate) : new Date();
+
+    // Fetch all satisfaction responses in date range
+    const responses = await this.satisfactionResponseRepository.find({
+      where: {
+        responded_at: {
+          $gte: startDate,
+          $lte: endDate,
+        } as any,
+      },
+      order: { responded_at: 'DESC' },
+    });
+
+    // Separate NPS and CSAT responses
+    const npsResponses = responses.filter((r) => r.survey_type === 'nps');
+    const csatResponses = responses.filter((r) => r.survey_type === 'csat');
+
+    // Calculate NPS metrics
+    const npsScores = npsResponses.map((r) => r.score);
+    const npsOverall = this.satisfactionSurveyService.calculateNPS(npsScores);
+    const npsPromoters = npsScores.filter((s) => s >= 9).length;
+    const npsPassives = npsScores.filter((s) => s >= 7 && s <= 8).length;
+    const npsDetractors = npsScores.filter((s) => s <= 6).length;
+    const npsTotal = npsScores.length;
+
+    // Calculate CSAT metrics
+    const csatScores = csatResponses.map((r) => r.score);
+    const csatOverall = this.satisfactionSurveyService.calculateCSAT(csatScores);
+    const csatAvgRating = csatScores.length > 0
+      ? csatScores.reduce((sum, s) => sum + s, 0) / csatScores.length
+      : 0;
+
+    // Calculate response rates (responses / conversations ended)
+    const conversationsEndedCount = await this.analyticsEventRepository
+      .createQueryBuilder('ae')
+      .where('ae.event_type IN (:...types)', { types: ['conversation.resolved', 'conversation.escalated'] })
+      .andWhere('ae.created_at >= :startDate', { startDate })
+      .andWhere('ae.created_at <= :endDate', { endDate })
+      .getCount();
+
+    const npsResponseRate = conversationsEndedCount > 0 ? npsTotal / conversationsEndedCount : 0;
+    const csatResponseRate = conversationsEndedCount > 0 ? csatScores.length / conversationsEndedCount : 0;
+
+    // Calculate NPS trend (daily aggregation)
+    const npsTrend = await this.calculateNpsTrend(startDate, endDate);
+
+    // Calculate CSAT distribution
+    const csatDistribution = this.calculateCsatDistribution(csatScores);
+
+    // Get correlation by outcome
+    const correlation = await this.satisfactionSurveyService.getCorrelationByOutcome(startDate, endDate);
+
+    return {
+      nps: {
+        overall: npsOverall,
+        promoters: npsTotal > 0 ? Math.round((npsPromoters / npsTotal) * 100) : 0,
+        passives: npsTotal > 0 ? Math.round((npsPassives / npsTotal) * 100) : 0,
+        detractors: npsTotal > 0 ? Math.round((npsDetractors / npsTotal) * 100) : 0,
+        responseRate: Math.round(npsResponseRate * 100) / 100,
+        trend: npsTrend,
+      },
+      csat: {
+        overall: csatOverall,
+        avgRating: Math.round(csatAvgRating * 10) / 10,
+        responseRate: Math.round(csatResponseRate * 100) / 100,
+        distribution: csatDistribution,
+      },
+      correlation,
+    };
+  }
+
+  /**
+   * Calculate NPS trend over time (daily aggregation).
+   */
+  private async calculateNpsTrend(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<Array<{ date: string; nps: number }>> {
+    const responses = await this.satisfactionResponseRepository
+      .createQueryBuilder('sr')
+      .where('sr.survey_type = :type', { type: 'nps' })
+      .andWhere('sr.responded_at >= :startDate', { startDate })
+      .andWhere('sr.responded_at <= :endDate', { endDate })
+      .orderBy('sr.responded_at', 'ASC')
+      .getMany();
+
+    // Group by date
+    const byDate: Record<string, number[]> = {};
+    for (const response of responses) {
+      const date = response.responded_at.toISOString().split('T')[0];
+      if (!byDate[date]) byDate[date] = [];
+      byDate[date].push(response.score);
+    }
+
+    // Calculate NPS per day
+    const trend: Array<{ date: string; nps: number }> = [];
+    for (const [date, scores] of Object.entries(byDate)) {
+      const nps = this.satisfactionSurveyService.calculateNPS(scores);
+      trend.push({ date, nps });
+    }
+
+    return trend;
+  }
+
+  /**
+   * Calculate CSAT distribution (count per rating 1-5).
+   */
+  private calculateCsatDistribution(scores: number[]): Array<{ rating: number; count: number }> {
+    const distribution = [1, 2, 3, 4, 5].map((rating) => ({
+      rating,
+      count: scores.filter((s) => s === rating).length,
+    }));
+    return distribution;
   }
 
   /**
