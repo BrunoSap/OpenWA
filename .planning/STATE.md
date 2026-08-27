@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
 status: in_progress
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-08-27T03:58:40.584Z"
-state_head: 6759f71f94d90424e6b7573f173e70a46f3fe721
+stopped_at: Completed 06-02b-PLAN.md
+last_updated: "2026-08-27T04:25:51.672Z"
+state_head: bc443cf50a76b08461d800092fdc6eef408e0ec2
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 23
-  completed_plans: 20
+  completed_plans: 22
   percent: 17
 ---
 
@@ -450,6 +450,7 @@ MASTER_API_KEY=xxx
 | Phase 05 P01 | 6.5 | 3 tasks | 9 files |
 | Phase 05 P03 | 7 | 3 tasks | 14 files |
 | Phase 06 P01 | 99 | 3 tasks | 17 files |
+| Phase 06 P02b | 8 | 3 tasks | 14 files |
 
 ## Decisions
 
@@ -468,9 +469,11 @@ MASTER_API_KEY=xxx
 - [Phase ?]: Shape test guards T-03-01 via negative regex for secret prefixes
 - [Phase ?]: All GitHub Actions pinned by SHA for supply-chain security
 - [Phase ?]: Use gpt-4o-mini with detail 'low' for cost control in Vision tests
+- [Phase ?]: Daily aggregation job at 1 AM computes yesterday's KPIs and upserts to analytics_aggregates
+- [Phase ?]: Cleanup job at 2 AM hard-deletes analytics_events older than ANALYTICS_RETENTION_DAYS (default 90)
 
 ## Session
 
-**Last session:** 2026-08-27T03:58:40.441Z
-**Stopped at:** Completed 06-01-PLAN.md
+**Last session:** 2026-08-27T04:25:51.538Z
+**Stopped at:** Completed 06-02b-PLAN.md
 **Resume file:** None
