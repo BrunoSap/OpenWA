@@ -35,7 +35,7 @@ export function CostBreakdown({ total, breakdown }: CostBreakdownProps) {
             <Tooltip
               contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px' }}
               labelStyle={{ color: '#111827', fontWeight: 600 }}
-              formatter={(value: number) => `$${value.toFixed(4)}`}
+              formatter={(value: any) => `$${Number(value).toFixed(4)}`}
             />
             <Legend />
             <Bar dataKey="cost" fill="#3b82f6" name="Cost ($)" />

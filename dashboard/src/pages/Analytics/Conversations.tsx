@@ -6,6 +6,7 @@
 
 import { useState } from 'react';
 import { useAnalyticsConversations } from '../../hooks/useAnalytics';
+import { AnalyticsTabs } from '../../components/analytics/AnalyticsTabs';
 
 export function AnalyticsConversations() {
   const [page, setPage] = useState(1);
@@ -16,7 +17,7 @@ export function AnalyticsConversations() {
     endDate: new Date(),
   });
 
-  const { data, isLoading, isFetching, isError, error } = useAnalyticsConversations({
+  const { data, isFetching, isError, error } = useAnalyticsConversations({
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
     page,
@@ -35,6 +36,8 @@ export function AnalyticsConversations() {
 
   return (
     <div className="analytics-page">
+      <AnalyticsTabs />
+
       <div className="page-header">
         <h1>Conversations</h1>
         <p className="page-description">Detailed conversation summaries and metrics</p>

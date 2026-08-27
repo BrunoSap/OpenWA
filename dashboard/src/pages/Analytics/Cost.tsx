@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import { useAnalyticsCost } from '../../hooks/useAnalytics';
 import { CostBreakdown } from '../../components/analytics/CostBreakdown';
+import { AnalyticsTabs } from '../../components/analytics/AnalyticsTabs';
 
 export function AnalyticsCost() {
   const [dateRange] = useState({
@@ -14,13 +15,15 @@ export function AnalyticsCost() {
     endDate: new Date(),
   });
 
-  const { data, isLoading, isFetching, isError, error } = useAnalyticsCost({
+  const { data, isFetching, isError, error } = useAnalyticsCost({
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
   });
 
   return (
     <div className="analytics-page">
+      <AnalyticsTabs />
+
       <div className="page-header">
         <h1>Cost Analysis</h1>
         <p className="page-description">Total cost and breakdown by provider/model</p>

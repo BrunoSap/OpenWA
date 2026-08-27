@@ -1238,3 +1238,165 @@ Ver arquivo completo: `archive/SYSTEM_PROMPT_INTAKE.md`
 - [Workflows](WORKFLOWS.md)
 - [Troubleshooting](TROUBLESHOOTING.md)
 - [Original Guides](archive/)
+
+---
+
+## Analytics Dashboard (Web UI)
+
+### Overview
+
+O Analytics Dashboard é uma interface web para operadores visualizarem métricas de negócio, performance e custos do sistema OpenWA. Todos os endpoints de analytics requerem uma api-key com role `OPERATOR`.
+
+**Acesso:** `http://localhost:3000/analytics` (após login com api-key de operador)
+
+### Views Disponíveis
+
+O dashboard oferece 5 views acessíveis via tabs de navegação:
+
+#### 1. Overview
+
+**Propósito:** Visão geral em tempo real com KPIs principais.
+
+**Métricas exibidas:**
+- **Resolution Rate**: % de conversas resolvidas sem fallback
+- **Fallback Rate**: % de conversas que necessitaram intervenção humana
+- **Cost per Conversation**: Custo médio por conversa (USD)
+- **DAU**: Usuários ativos diários
+- **MAU**: Usuários ativos mensais
+
+**Atualizações:** Dados atualizam via SSE (Server-Sent Events) a cada 10 segundos ou polling em caso de falha de conexão.
+
+#### 2. Performance
+
+**Propósito:** Monitorar latência de resposta do sistema.
+
+**Métricas exibidas:**
+- **p50 (mediana)**: Latência no percentil 50
+- **p95**: Latência no percentil 95 (99% das respostas são mais rápidas)
+- **p99**: Latência no percentil 99 (outliers)
+
+**Granularidade:** Hora (últimos 7 dias) ou dia (últimos 30 dias)
+
+**Uso:** Identificar picos de latência e degradação de performance.
+
+#### 3. Cost
+
+**Propósito:** Acompanhar custos de LLM providers.
+
+**Métricas exibidas:**
+- **Total Cost**: Custo total acumulado (USD)
+- **Breakdown**: Custos por provider/modelo (ex: `groq:llama-3.3-70b-versatile`, `openai:gpt-4o`)
+
+**Uso:** Controlar gastos e identificar modelos mais caros.
+
+#### 4. Conversations
+
+**Propósito:** Lista detalhada de conversas individuais.
+
+**Colunas:**
+- **Conversation ID**: Identificador único da conversa
+- **Session**: Sessão WhatsApp associada
+- **Messages**: Número de mensagens trocadas
+- **Cost**: Custo total da conversa (USD)
+- **Avg Latency**: Latência média de resposta (ms)
+- **Started / Ended**: Timestamps de início e fim
+
+**Paginação:** 20 conversas por página, navegação prev/next.
+
+**Uso:** Auditar conversas longas ou caras, identificar outliers.
+
+#### 5. Alerts
+
+**Propósito:** Configurar alertas automáticos para métricas de negócio.
+
+**Funcionalidades:**
+- **Criar Alert Rule**: Definir nome, métrica, condição (above/below), threshold e canais de notificação
+- **Listar Rules**: Tabela com regras ativas/inativas
+- **Deletar Rules**: Remover alertas não utilizados
+- **Export CSV/JSON**: Download de eventos de analytics para análise externa
+
+**Métricas disponíveis para alertas:**
+- `fallback_rate`: Taxa de fallback para humano
+- `resolution_rate`: Taxa de resolução automática
+- `cost_total_usd`: Custo total acumulado
+- `latency_p95`: Latência no percentil 95
+
+**Canais de notificação suportados:**
+- **Slack**: Webhook URL (formato `https://hooks.slack.com/services/...`)
+- **Webhook genérico**: URL customizada (futuro)
+- **Email**: Configuração via SMTP (futuro)
+
+**Exemplo de alert rule:**
+```json
+{
+  "name": "High Fallback Rate Alert",
+  "metric": "fallback_rate",
+  "condition": "above",
+  "threshold": 15.0,
+  "enabled": true,
+  "notification_channels": {
+    "slack": {
+      "webhookUrl": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXX"
+    }
+  }
+}
+```
+
+**Avaliação:** Regras são avaliadas a cada 5 minutos pelo worker `analytics-alert` (BullMQ).
+
+### Export de Dados
+
+**Formatos suportados:** CSV e JSON
+
+**Botões de export:** Disponíveis na view **Alerts** (canto superior direito).
+
+**Parâmetros:** Data range padrão é últimos 7 dias. Download via browser (Blob API).
+
+**Uso comum:**
+- Análise em Excel/Google Sheets (CSV)
+- Importação em ferramentas de BI (JSON)
+- Backup de métricas históricas
+
+### Segurança e Autenticação
+
+**Requisito:** Todas as rotas de analytics exigem role `OPERATOR`.
+
+**Validação server-side:** Decorator `@RequireRole(ApiKeyRole.OPERATOR)` em todos os endpoints.
+
+**Comportamento para não-operadores:**
+- Client-side: Rotas de analytics não aparecem no menu
+- Server-side: Requests retornam `401 Unauthorized` ou `403 Forbidden`
+
+**API Key header:** O dashboard envia `X-API-Key` (lido de `sessionStorage.openwa_api_key`).
+
+**Teste de auth:** O E2E `analytics-dashboard-auth.e2e-spec.ts` valida que VIEWER keys são rejeitadas em todos os endpoints.
+
+### Troubleshooting
+
+**Problema:** Dashboard mostra "Connecting..." mas nunca carrega dados
+
+**Causas comuns:**
+1. API key não tem role `OPERATOR` → Login com key de admin ou criar nova key OPERATOR
+2. Analytics desabilitado (`ANALYTICS_ENABLED=false`) → Verificar `.env` e reiniciar backend
+3. Backend não acessível → Verificar `VITE_API_URL` no frontend e conectividade
+
+**Problema:** Export CSV retorna erro 500
+
+**Causas comuns:**
+1. Data range muito grande (>90 dias sem dados) → Reduzir range ou aguardar agregação
+2. Database slow query → Verificar índices em `analytics_events` e `analytics_aggregates`
+
+**Problema:** Alertas não disparam
+
+**Causas comuns:**
+1. Rule com `enabled: false` → Editar rule e ativar
+2. Worker BullMQ não rodando → Verificar logs `docker-compose logs -f openwa` e confirmar job `analytics-alert` ativo
+3. Webhook URL inválida → Testar URL manualmente com `curl`
+
+### Referências
+
+- **Backend analytics controller:** `src/modules/analytics/analytics.controller.ts`
+- **Frontend hooks:** `dashboard/src/hooks/useAnalytics.ts`
+- **E2E auth test:** `test/analytics-dashboard-auth.e2e-spec.ts`
+- **Alert dispatcher:** `src/modules/analytics/services/analytics-alert-dispatch.service.ts`
+

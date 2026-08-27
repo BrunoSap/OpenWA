@@ -24,6 +24,10 @@ const MessageTester = lazy(() => import('./pages/MessageTester').then(m => ({ de
 const Infrastructure = lazy(() => import('./pages/Infrastructure').then(m => ({ default: m.Infrastructure })));
 const Plugins = lazy(() => import('./pages/Plugins'));
 const AnalyticsOverview = lazy(() => import('./pages/Analytics/Overview').then(m => ({ default: m.AnalyticsOverview })));
+const AnalyticsPerformance = lazy(() => import('./pages/Analytics/Performance').then(m => ({ default: m.AnalyticsPerformance })));
+const AnalyticsCost = lazy(() => import('./pages/Analytics/Cost').then(m => ({ default: m.AnalyticsCost })));
+const AnalyticsConversations = lazy(() => import('./pages/Analytics/Conversations').then(m => ({ default: m.AnalyticsConversations })));
+const AlertsPage = lazy(() => import('./pages/Analytics/Alerts').then(m => ({ default: m.AlertsPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -121,6 +125,10 @@ function AppContent() {
               {role === 'admin' && <Route path="infrastructure" element={<Infrastructure />} />}
               {role === 'admin' && <Route path="plugins" element={<Plugins />} />}
               {(role === 'admin' || role === 'operator') && <Route path="analytics" element={<AnalyticsOverview />} />}
+              {(role === 'admin' || role === 'operator') && <Route path="analytics/performance" element={<AnalyticsPerformance />} />}
+              {(role === 'admin' || role === 'operator') && <Route path="analytics/cost" element={<AnalyticsCost />} />}
+              {(role === 'admin' || role === 'operator') && <Route path="analytics/conversations" element={<AnalyticsConversations />} />}
+              {(role === 'admin' || role === 'operator') && <Route path="analytics/alerts" element={<AlertsPage />} />}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

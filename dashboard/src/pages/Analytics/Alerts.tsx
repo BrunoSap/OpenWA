@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import { useAlertRules, useCreateAlertRule, useDeleteAlertRule } from '../../hooks/useAnalytics';
 import { AlertRuleForm, type AlertRuleInput } from '../../components/analytics/AlertRuleForm';
+import { AnalyticsTabs } from '../../components/analytics/AnalyticsTabs';
 import { analyticsApi } from '../../services/analytics';
 import { triggerBlobDownload } from '../../utils/analyticsExport';
 
@@ -53,6 +54,8 @@ export function AlertsPage() {
 
   return (
     <div className="analytics-page">
+      <AnalyticsTabs />
+
       <div className="page-header">
         <div>
           <h1>Alert Rules</h1>

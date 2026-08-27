@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import { useAnalyticsPerformance } from '../../hooks/useAnalytics';
 import { PercentileChart } from '../../components/analytics/PercentileChart';
+import { AnalyticsTabs } from '../../components/analytics/AnalyticsTabs';
 
 export function AnalyticsPerformance() {
   const [dateRange] = useState({
@@ -14,7 +15,7 @@ export function AnalyticsPerformance() {
     endDate: new Date(),
   });
 
-  const { data, isLoading, isFetching, isError, error } = useAnalyticsPerformance({
+  const { data, isFetching, isError, error } = useAnalyticsPerformance({
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
     granularity: 'hour',
@@ -22,6 +23,8 @@ export function AnalyticsPerformance() {
 
   return (
     <div className="analytics-page">
+      <AnalyticsTabs />
+
       <div className="page-header">
         <h1>Performance Metrics</h1>
         <p className="page-description">Latency percentiles (p50, p95, p99) over time</p>

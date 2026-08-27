@@ -66,6 +66,13 @@
     "plugins": "Plugins",
     "logs": "Logs"
   },
+  "analyticsNav": {
+    "overview": "Overview",
+    "performance": "Performance",
+    "cost": "Cost",
+    "conversations": "Conversations",
+    "alerts": "Alerts"
+  },
   "chats": {
     "media": {
       "location": "Location",

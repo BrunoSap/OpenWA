@@ -8,6 +8,7 @@
 import { useMemo } from 'react';
 import { useAnalyticsStream } from '../../hooks/useAnalyticsStream';
 import { KPICard } from '../../components/analytics/KPICard';
+import { AnalyticsTabs } from '../../components/analytics/AnalyticsTabs';
 import { formatKpi } from '../../utils/formatKpi';
 import { CheckCircle, AlertTriangle, DollarSign, Users, Activity } from 'lucide-react';
 
@@ -71,6 +72,8 @@ export function AnalyticsOverview() {
 
   return (
     <div style={{ padding: '1.5rem' }}>
+      <AnalyticsTabs />
+
       <div style={{ marginBottom: '1.5rem' }}>
         <h1 style={{ fontSize: '1.875rem', fontWeight: 700, margin: 0, marginBottom: '0.5rem' }}>
           Analytics Overview
