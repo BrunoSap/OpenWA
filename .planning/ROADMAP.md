@@ -253,7 +253,7 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 - [x] 06-01-PLAN.md — Tracer E2E: event-driven collection (message.processed → analytics_events → GET /api/analytics/events), opt-in via ANALYTICS_ENABLED (Wave 1)
 - [x] 06-02-PLAN.md — Expansão coleta: 5 eventos de negócio (conversation.*, llm.called, fallback.triggered) + utils de custo/percentil (Wave 2)
 - [x] 06-02b-PLAN.md — Agregação + API: analytics_aggregates + serviço de agregação + jobs BullMQ (agregação diária + retenção) + KPIs (resolução/fallback/custo/latência p50-p99/DAU-MAU) + /overview /performance /cost /conversations (Wave 2)
-- [ ] 06-03-PLAN.md — Export CSV/JSON + SSE tempo real + alertas configuráveis (Slack/webhook/email + Prometheus rules) + CI/CD + docs de custo (Wave 3)
+- [x] 06-03-PLAN.md — Export CSV/JSON + SSE tempo real + alertas configuráveis (Slack/webhook/email + Prometheus rules) + CI/CD + docs de custo (Wave 3)
 
 > Nota de escopo: entrega a camada de dados do dashboard (API + export + SSE + regras Prometheus/Grafana). A SPA React customizada (RESEARCH §4) é diferida para fase seguinte; Grafana consome prometheus/alerts.yml como visualização intermediária.
 
