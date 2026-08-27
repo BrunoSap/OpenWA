@@ -12,6 +12,7 @@ import { AnalyticsIntentClassification } from './entities/analytics-intent-class
 import { AnalyticsIntentRoutingRule } from './entities/analytics-intent-routing-rule.entity';
 import { AnalyticsABExperiment } from './entities/analytics-ab-experiment.entity';
 import { AnalyticsSatisfactionResponse } from './entities/analytics-satisfaction-response.entity';
+import { MLModelVersion } from './entities/ml-model-version.entity';
 import { AnalyticsEventsService } from './services/analytics-events.service';
 import { AnalyticsAggregationService } from './services/analytics-aggregation.service';
 import { AnalyticsExportService } from './services/analytics-export.service';
@@ -23,6 +24,7 @@ import { FunnelAnalyticsService } from './services/funnel-analytics.service';
 import { SatisfactionSurveyService } from './services/satisfaction-survey.service';
 import { WhatsAppInteractiveService } from './services/whatsapp-interactive.service';
 import { SurveyResponseHandler } from './services/survey-response-handler.service';
+import { PredictiveModelsService } from './services/predictive-models.service';
 import { AnalyticsEventListener } from './listeners/analytics-event.listener';
 import { SurveySchedulerListener } from './listeners/survey-scheduler.listener';
 import { AnalyticsAggregationProcessor } from './processors/analytics-aggregation.processor';
@@ -30,6 +32,7 @@ import { AnalyticsCleanupProcessor } from './processors/analytics-cleanup.proces
 import { AnalyticsAlertProcessor } from './processors/analytics-alert.processor';
 import { IntentClassificationProcessor } from './processors/intent-classification.processor';
 import { SurveySchedulerProcessor } from './processors/survey-scheduler.processor';
+import { MLTrainingProcessor } from './processors/ml-training.processor';
 import { AnalyticsController } from './analytics.controller';
 import { QUEUE_NAMES } from '../queue/queue-names';
 import { createLogger } from '../../common/services/logger.service';
@@ -64,6 +67,8 @@ import { createLogger } from '../../common/services/logger.service';
         AnalyticsIntentClassification,
         AnalyticsIntentRoutingRule,
         AnalyticsABExperiment,
+        AnalyticsSatisfactionResponse,
+        MLModelVersion,
       ],
       'data',
     ),
@@ -88,6 +93,7 @@ import { createLogger } from '../../common/services/logger.service';
     SatisfactionSurveyService,
     WhatsAppInteractiveService,
     SurveyResponseHandler,
+    PredictiveModelsService,
     AnalyticsEventListener,
     SurveySchedulerListener,
     AnalyticsAggregationProcessor,
@@ -95,6 +101,7 @@ import { createLogger } from '../../common/services/logger.service';
     AnalyticsAlertProcessor,
     IntentClassificationProcessor,
     SurveySchedulerProcessor,
+    MLTrainingProcessor,
   ],
   exports: [AnalyticsEventsService, AnalyticsAggregationService, IntentClassificationService, ABTestingService, FunnelAnalyticsService],
 })
@@ -162,5 +169,19 @@ export class AnalyticsModule implements OnModuleInit {
     );
 
     this.logger.log('Intent classification repeatable job registered (hourly at minute 0)');
+
+    // Enqueue repeatable job for ML model training daily at 3 AM (Phase 10 Plan 04)
+    await this.analyticsQueue.add(
+      'train-outcome-model',
+      {},
+      {
+        repeat: {
+          pattern: '0 3 * * *', // Daily at 3 AM (cron format)
+        },
+        jobId: 'train-outcome-daily',
+      } as any,
+    );
+
+    this.logger.log('ML outcome model training repeatable job registered (daily at 3 AM)');
   }
 }
