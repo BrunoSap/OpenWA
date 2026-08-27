@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Session } from './entities/session.entity';
 import { Message } from '../message/entities/message.entity';
 import { SessionService } from './session.service';
+import { SessionRepository } from './session.repository';
 import { SessionEngineLifecycle } from './session-engine-lifecycle.service';
 import { SessionLidResolver } from './session-lid-resolver.service';
 import { SessionLivenessWatchdog } from './session-liveness-watchdog.service';
@@ -34,6 +35,7 @@ import { PLUGIN_SESSION_PORT, type PluginSessionPort } from '../../core/plugins/
   providers: [
     // Global on purpose: any controller may carry a session dimension. Inert unless NODE_URL is set.
     { provide: APP_INTERCEPTOR, useClass: SessionProxyInterceptor },
+    SessionRepository,
     SessionService,
     SessionEngineLifecycle,
     SessionErrorStore,
