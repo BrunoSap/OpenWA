@@ -9,12 +9,14 @@ import { AnalyticsAlertRule } from './entities/analytics-alert-rule.entity';
 import { AnalyticsIntentTaxonomy } from './entities/analytics-intent-taxonomy.entity';
 import { AnalyticsIntentClassification } from './entities/analytics-intent-classification.entity';
 import { AnalyticsIntentRoutingRule } from './entities/analytics-intent-routing-rule.entity';
+import { AnalyticsABExperiment } from './entities/analytics-ab-experiment.entity';
 import { AnalyticsEventsService } from './services/analytics-events.service';
 import { AnalyticsAggregationService } from './services/analytics-aggregation.service';
 import { AnalyticsExportService } from './services/analytics-export.service';
 import { AnalyticsAlertService } from './services/analytics-alert.service';
 import { AlertDispatchService } from './services/alert-dispatch.service';
 import { IntentClassificationService } from './services/intent-classification.service';
+import { ABTestingService } from './services/ab-testing.service';
 import { AnalyticsEventListener } from './listeners/analytics-event.listener';
 import { AnalyticsAggregationProcessor } from './processors/analytics-aggregation.processor';
 import { AnalyticsCleanupProcessor } from './processors/analytics-cleanup.processor';
@@ -52,6 +54,7 @@ import { createLogger } from '../../common/services/logger.service';
         AnalyticsIntentTaxonomy,
         AnalyticsIntentClassification,
         AnalyticsIntentRoutingRule,
+        AnalyticsABExperiment,
       ],
       'data',
     ),
@@ -71,13 +74,14 @@ import { createLogger } from '../../common/services/logger.service';
     AnalyticsAlertService,
     AlertDispatchService,
     IntentClassificationService,
+    ABTestingService,
     AnalyticsEventListener,
     AnalyticsAggregationProcessor,
     AnalyticsCleanupProcessor,
     AnalyticsAlertProcessor,
     IntentClassificationProcessor,
   ],
-  exports: [AnalyticsEventsService, AnalyticsAggregationService, IntentClassificationService],
+  exports: [AnalyticsEventsService, AnalyticsAggregationService, IntentClassificationService, ABTestingService],
 })
 export class AnalyticsModule implements OnModuleInit {
   private readonly logger = createLogger('AnalyticsModule');
