@@ -95,8 +95,9 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
   private shuttingDown = false;
 
   constructor(
+    private readonly tenantScopedRepo: SessionRepository, // Tenant-scoped repository for public queries
     @InjectRepository(Session, 'data')
-    private readonly sessionRepository: Repository<Session>,
+    private readonly sessionRepository: Repository<Session>, // Raw repository for internal/admin operations
     @InjectDataSource('data')
     private readonly dataSource: DataSource,
     private readonly engineRegistry: EngineRegistry,
@@ -316,12 +317,14 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
     if (allowedSessions && allowedSessions.length > 0) {
       options.where = { id: In(allowedSessions) };
     }
-    const sessions = await this.sessionRepository.find(options);
+    // Use tenant-scoped repository for public queries (auto-injects WHERE tenantId = ?)
+    const sessions = await this.tenantScopedRepo.find(options);
     return sessions.map(session => this.attachRuntimeState(session));
   }
 
   async findOne(id: string): Promise<Session> {
-    const session = await this.sessionRepository.findOne({ where: { id } });
+    // Use tenant-scoped repository (ensures session belongs to current tenant)
+    const session = await this.tenantScopedRepo.findById(id);
     if (!session) {
       throw new NotFoundException(`Session with id '${id}' not found`);
     }

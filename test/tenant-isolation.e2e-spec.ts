@@ -200,11 +200,10 @@ describe('Tenant isolation E2E (Phase 9 Plan 1)', () => {
     });
   });
 
-  describe('Cross-tenant query isolation (Plan 1: NOT enforced - documented gap)', () => {
-    // TODO: Uncomment after Plan 2 implements TenantScopedRepository with query filtering
-    it.skip('should NOT see tenant B sessions when querying with tenant A key', async () => {
-      // This test documents the EXPECTED behavior after Plan 2
-      // Plan 1 does NOT enforce query filtering - repositories return all sessions
+  describe('Cross-tenant query isolation (Plan 2: TenantScopedRepository enforces filtering)', () => {
+    it('should NOT see tenant B sessions when querying with tenant A key', async () => {
+      // Plan 2 implements TenantScopedRepository - query filtering is now enforced
+      // SessionRepository.find() auto-injects WHERE tenantId = ? filter
 
       const res = await request(app.getHttpServer())
         .get('/api/sessions')
@@ -214,8 +213,58 @@ describe('Tenant isolation E2E (Phase 9 Plan 1)', () => {
       const sessions = res.body as Session[];
       const tenantBSessions = sessions.filter(s => s.tenantId === tenantB.id);
 
-      // After Plan 2, this assertion should pass (tenant A cannot see tenant B sessions)
+      // Tenant A key should ONLY see tenant A sessions (cross-tenant isolation proven)
       expect(tenantBSessions).toHaveLength(0);
+
+      // Verify all returned sessions belong to tenant A
+      sessions.forEach(session => {
+        expect(session.tenantId).toBe(tenantA.id);
+      });
+    });
+
+    it('should create sessions for both tenants and verify isolation', async () => {
+      const sessionAName = `e2e-isolation-a-${Date.now()}`;
+      const sessionBName = `e2e-isolation-b-${Date.now()}`;
+
+      // Tenant A creates a session
+      await request(app.getHttpServer())
+        .post(`/api/sessions/${sessionAName}/start`)
+        .set('X-API-Key', apiKeyARaw)
+        .send({})
+        .expect(201);
+
+      // Tenant B creates a session
+      await request(app.getHttpServer())
+        .post(`/api/sessions/${sessionBName}/start`)
+        .set('X-API-Key', apiKeyBRaw)
+        .send({})
+        .expect(201);
+
+      // Tenant A queries sessions - should only see session-a
+      const resA = await request(app.getHttpServer())
+        .get('/api/sessions')
+        .set('X-API-Key', apiKeyARaw)
+        .expect(200);
+
+      const sessionsA = resA.body as Session[];
+      const sessionAFound = sessionsA.find(s => s.name === sessionAName);
+      const sessionBFound = sessionsA.find(s => s.name === sessionBName);
+
+      expect(sessionAFound).toBeDefined();
+      expect(sessionBFound).toBeUndefined(); // Cannot see tenant B's session
+
+      // Tenant B queries sessions - should only see session-b
+      const resB = await request(app.getHttpServer())
+        .get('/api/sessions')
+        .set('X-API-Key', apiKeyBRaw)
+        .expect(200);
+
+      const sessionsB = resB.body as Session[];
+      const sessionAFoundInB = sessionsB.find(s => s.name === sessionAName);
+      const sessionBFoundInB = sessionsB.find(s => s.name === sessionBName);
+
+      expect(sessionAFoundInB).toBeUndefined(); // Cannot see tenant A's session
+      expect(sessionBFoundInB).toBeDefined();
     });
   });
 
