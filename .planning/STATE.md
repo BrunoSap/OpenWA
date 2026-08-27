@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 status: in_progress
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-08-27T05:57:12Z"
-state_head: 842adb4f
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-08-27T07:07:00.565Z"
+state_head: 85b0521919e029fdade4eb093b813e0211722155
 progress:
-  total_phases: 7
-  completed_phases: 6
-  total_plans: 26
-  completed_plans: 23
-  percent: 88
+  total_phases: 8
+  completed_phases: 1
+  total_plans: 30
+  completed_plans: 27
+  percent: 13
 ---
 
 # State - OpenWA Platform
@@ -452,6 +452,7 @@ MASTER_API_KEY=xxx
 | Phase 06 P01 | 99 | 3 tasks | 17 files |
 | Phase 06 P02b | 8 | 3 tasks | 14 files |
 | Phase 07 P01 | 11 | 3 tasks | 7 files |
+| Phase 08 P01 | 8 | 3 tasks | 8 files |
 
 ## Decisions
 
@@ -475,9 +476,12 @@ MASTER_API_KEY=xxx
 - [Phase 07]: Use simpod-json-datasource plugin for JSON API consumption (Grafana-signed community plugin)
 - [Phase 07]: Authorization Bearer header for JSON API auth (api-key.guard.ts accepts both X-API-Key and Authorization Bearer)
 - [Phase 07]: 11-panel dashboard layout expands "4 sections" to granular panels (5 KPI stats + 2 latency graphs + 2 cost panels + 1 conversations table + 1 alertlist)
+- [Phase ?]: Use nginx ip_hash for sticky sessions (OSS-native, transparent)
+- [Phase ?]: Split Docker Compose into default and scale-2 profiles for opt-in scaling
+- [Phase ?]: Add Redis/Engine custom health indicators to readiness probe
 
 ## Session
 
-**Last session:** 2026-08-27T05:57:12Z
-**Stopped at:** Completed 07-01-PLAN.md
+**Last session:** 2026-08-27T07:07:00.319Z
+**Stopped at:** Completed 08-01-PLAN.md
 **Resume file:** None
