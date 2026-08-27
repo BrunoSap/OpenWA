@@ -34,6 +34,7 @@ import { IntentClassificationProcessor } from './processors/intent-classificatio
 import { SurveySchedulerProcessor } from './processors/survey-scheduler.processor';
 import { MLTrainingProcessor } from './processors/ml-training.processor';
 import { AnalyticsController } from './analytics.controller';
+import { PredictionsController } from './controllers/predictions.controller';
 import { QUEUE_NAMES } from '../queue/queue-names';
 import { createLogger } from '../../common/services/logger.service';
 
@@ -80,7 +81,7 @@ import { createLogger } from '../../common/services/logger.service';
       },
     }),
   ],
-  controllers: [AnalyticsController],
+  controllers: [AnalyticsController, PredictionsController],
   providers: [
     AnalyticsEventsService,
     AnalyticsAggregationService,
