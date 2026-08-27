@@ -5,4 +5,5 @@ export const QUEUE_NAMES = {
   INGRESS: 'ingress-queue',
   SUMMARIZATION: 'summarization-queue',
   RETENTION: 'retention-queue',
+  ANALYTICS: 'analytics-queue',
 } as const;

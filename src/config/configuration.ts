@@ -147,6 +147,7 @@ export default () => ({
   // Analytics configuration (Phase 6)
   analytics: {
     enabled: process.env.ANALYTICS_ENABLED === 'true',
+    retentionDays: parseInt(process.env.ANALYTICS_RETENTION_DAYS || '90', 10),
   },
 
   // Main Database configuration (always SQLite for boot config)
