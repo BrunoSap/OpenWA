@@ -259,6 +259,65 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 
 ---
 
+## Phase 7: Dashboard UI Visualization 🎯
+
+**Goal:** Interface visual para consumir analytics backend (Phase 6 deliverables) — dashboards interativos para métricas operacionais.
+
+**Why this matters:** Phase 6 entregou backend completo (10 REST endpoints, SSE stream, alertas, export), mas sem interface visual. Stakeholders precisam de dashboards para:
+
+- Monitorar métricas em tempo real (sem escrever queries)
+- Visualizar tendências históricas (gráficos, não tabelas)
+- Drill-down de overview → detalhes
+- Alertas visíveis e acionáveis
+
+**Deliverables:**
+
+**Wave 1: Grafana MVP (Quick Win)**
+- Grafana dashboards consuming 10 REST endpoints from Phase 6
+- Prometheus data source integration (alerts.yml visualization)
+- 4 dashboard panels: Overview KPIs, Performance metrics, Cost breakdown, Conversations funnel
+- Alert visualization via Prometheus alerts
+- JSON API data source configuration
+
+**Wave 2: React SPA (Custom Dashboard)**
+- React + TypeScript SPA with design system (Tailwind/MUI)
+- Real-time updates via SSE stream (10s refresh)
+- 4 main views: Overview (cards KPI), Performance (latency charts), Cost (breakdown por feature), Conversations (funnel)
+- Alert notifications UI (active rules + history with dismiss/acknowledge)
+- Export functionality (CSV/JSON download via UI buttons)
+- Responsive design (mobile + desktop)
+- Authentication integration (operator role required)
+- E2E tests for all dashboard interactions
+
+**Success Criteria:**
+
+**Grafana MVP:**
+- ✅ Grafana dashboards deployed and accessible
+- ✅ All 10 REST endpoints visualized
+- ✅ Prometheus alerts visible in Grafana
+
+**React SPA:**
+- ✅ Dashboard loads in <2s
+- ✅ Real-time metrics update every 10s via SSE
+- ✅ Alert notifications displayed prominently with actions
+- ✅ Drill-down from overview to details working
+- ✅ Export downloads complete data
+- ✅ Responsive layout works on mobile
+- ✅ E2E tests cover all user flows
+
+**Approach:** Dual-track implementation (both Grafana + React)
+- Grafana provides immediate operational visibility
+- React SPA delivers custom UX and feature richness
+
+**Dependencies:** Phase 6 (analytics backend complete ✅)
+
+**Effort:** 
+- Grafana MVP: ~2h (configuration only) - Wave 1
+- React SPA: ~3-5 days (design + implementation + tests) - Wave 2
+- **Total:** ~3-5 days (waves can overlap)
+
+---
+
 ## Backlog & Future Phases
 
 Features identificadas na reanálise mas fora do escopo atual:
