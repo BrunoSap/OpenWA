@@ -32,14 +32,14 @@ decisions:
 metrics:
   duration: 7min
   tasks: 2
-  commits: 2
+  commits: 4
   files: 9
   completed: 2026-08-27T04:08:13Z
 status: complete
 actuals:
   tokens: 8500
   tasks: 2
-  commits: 2
+  commits: 4
 ---
 
 # Phase 06 Plan 02: Analytics Event Expansion + Cost Utilities Summary
@@ -119,7 +119,14 @@ Event collection expansion: added 5 domain events (conversation.started, convers
 
 ## Deviations from Plan
 
-None — plan executed exactly as written. TDD cycle followed (RED → GREEN → no REFACTOR needed). All event handlers implemented, cost calculation proven, E2E tests extended.
+**Auto-fix (Rule 1 - Bug):** TypeScript compilation errors in error logging
+- **Found during:** Post-commit TypeScript compilation check
+- **Issue:** Logger.error expects `(message: string, trace?: string)` but was receiving `Error` objects
+- **Fix:** Changed all error logging to `(error as Error)?.stack` to pass stack trace string
+- **Files modified:** analytics-event.listener.ts, llm.service.ts
+- **Commit:** 00c7d684
+
+Otherwise plan executed exactly as written. TDD cycle followed (RED → GREEN → no REFACTOR needed). All event handlers implemented, cost calculation proven, E2E tests extended.
 
 ## Technical Decisions
 
@@ -209,7 +216,10 @@ None. All must-haves delivered and verified.
 - ✅ `test/analytics-tracer.e2e-spec.ts` contains 7 new test cases
 - ✅ Commit d0f81ba3 exists (Task 1: TDD RED+GREEN for cost+percentile utils)
 - ✅ Commit 0ff9518d exists (Task 2: 5 events + llm.called cost tracking + E2E tests)
+- ✅ Commit 32b65ddc exists (SUMMARY.md)
+- ✅ Commit 00c7d684 exists (TypeScript error logging fix)
 - ✅ All unit tests pass (analytics-cost.util.spec.ts, percentile.util.spec.ts)
+- ✅ TypeScript compilation passes with no errors in modified files
 
 ---
 
