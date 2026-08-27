@@ -324,11 +324,70 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 
 ---
 
+## Phase 8: Horizontal Scaling & Production Hardening 🎯
+
+**Goal:** Preparar plataforma para alto volume e alta disponibilidade — multi-replica support, health checks, distributed state, graceful shutdown.
+
+**Why this matters:** Single-instance deployment é SPOF. Production workloads exigem:
+- Alta disponibilidade (99.5%+ uptime)
+- Horizontal scaling (3+ replicas)
+- Zero-downtime deployments
+- Observability cross-replica
+
+**Deliverables:**
+
+### 8.1. Multi-Replica Support (Wave 1)
+- 2 replicas da API + nginx load balancer
+- Sticky sessions via ip_hash
+- Health checks expandidos (Redis + Engine indicators)
+- Testes E2E validando affinity
+
+### 8.2. Shared Storage & Distributed State (Wave 2)
+- NFS volume para WhatsApp profiles compartilhados
+- 3+ replicas processando jobs (BullMQ distributed)
+- WebSocket fan-out cross-replica (Redis pub/sub)
+- Testes E2E validando persistence cross-replica
+
+### 8.3. Observability & Monitoring (Wave 3)
+- Distributed tracing (OpenTelemetry + Jaeger)
+- SLO/SLI definitions (uptime 99.5%, latency p95 <500ms, error rate <1%)
+- Prometheus alerting rules (ReplicaDown, Unhealthy, LoadImbalance, SLO violations)
+- Grafana dashboard multi-replica visualization
+
+### 8.4. Production Deployment (Wave 4)
+- DEPLOYMENT.md completo (prerequisites, rolling update, rollback, DR)
+- Rolling update script (zero-downtime)
+- Smoke test automation (7 critical checks)
+- Production checklist (NFS, Redis, monitoring)
+
+**Success Criteria:**
+
+- ✅ 3+ replicas running simultaneously without conflicts
+- ✅ Session persistence across replica failures (NFS shared storage)
+- ✅ Zero downtime deployments (rolling updates with drain)
+- ✅ Health checks prevent traffic to unhealthy replicas
+- ✅ Load distributed evenly across replicas (sticky sessions working)
+- ✅ Distributed tracing correlates requests cross-replica
+- ✅ SLO monitoring detects violations (uptime, latency, error rate)
+
+**Dependencies:** Phase 7 (analytics backend provides metrics for SLO monitoring)
+
+**Effort:** ~5-7 dias (4 plans, 4 waves)
+
+**Plans:** 4 plans
+
+- [ ] 08-01-PLAN.md — Tracer: 2 replicas + nginx sticky + health checks (Redis + Engine indicators) (Wave 1)
+- [ ] 08-02-PLAN.md — Expansion: NFS shared storage + 3+ replicas + distributed workers/WebSocket (Wave 2)
+- [ ] 08-03-PLAN.md — Observability: OpenTelemetry tracing + Prometheus alerts + SLO/SLI + Grafana dashboard (Wave 3)
+- [ ] 08-04-PLAN.md — Production: DEPLOYMENT.md + rolling update script + smoke tests (Wave 4)
+
+---
+
 ## Backlog & Future Phases
 
 Features identificadas na reanálise mas fora do escopo atual:
 
-### Telefonia VibeVoice (Fase 7 Futura)
+### Telefonia VibeVoice (Fase Futura)
 
 - Integração com provedor VoIP
 - Chamadas de voz com STT/TTS em tempo real
@@ -343,17 +402,9 @@ Features identificadas na reanálise mas fora do escopo atual:
 
 ### Advanced Features
 
-- Long-term memory persistente (além de Redis)
-- Dashboard analytics avançado
 - Multi-tenant support
 - API pública com rate limiting por tenant
-
-### Enterprise & Scale (Fase 7 Original)
-
-- Horizontal scaling (multi-replica + load balancer)
-- Session affinity e distributed state
-- Multi-region deployment
-- High availability setup
+- Multi-region deployment (disaster recovery cross-region)
 
 ---
 
