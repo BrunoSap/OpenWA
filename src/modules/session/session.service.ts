@@ -14,6 +14,7 @@ import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, In, Not, IsNull, DataSource, FindManyOptions } from 'typeorm';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { setTimeout } from 'node:timers/promises';
+import { ClsService } from 'nestjs-cls';
 import { EngineTransportError } from '../../common/errors/engine-transport.error';
 import { Session, SessionStatus } from './entities/session.entity';
 import { CreateSessionDto, SessionConfigResponseDto, UpdateSessionConfigDto } from './dto';
@@ -105,6 +106,7 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
     private readonly presence: PresenceStore,
     private readonly hookManager: HookManager,
     private readonly engineLifecycle: SessionEngineLifecycle,
+    private readonly cls: ClsService,
     @Optional()
     private readonly configService?: ConfigService,
     // Trailing @Optional, like configService: the running app always provides it, while the
@@ -265,12 +267,16 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
       throw new ConflictException(`Session with name '${dto.name}' already exists`);
     }
 
+    // Get tenantId from ClsService (set by ApiKeyGuard)
+    const tenantId = this.cls.get<string>('tenantId');
+
     const session = this.sessionRepository.create({
       name: dto.name,
       config: dto.config || {},
       proxyUrl: dto.proxyUrl || null,
       proxyType: dto.proxyType || null,
       status: SessionStatus.CREATED,
+      tenantId: tenantId || null,
     });
 
     // The findOne pre-check above is a fast path for the common case, but it's a check-then-insert

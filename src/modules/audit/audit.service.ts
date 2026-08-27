@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, LessThan, In } from 'typeorm';
+import { ClsService } from 'nestjs-cls';
 import { AuditLog, AuditAction, AuditSeverity } from './entities/audit-log.entity';
 import { ApiKey } from '../auth/entities/api-key.entity';
 import { createLogger } from '../../common/services/logger.service';
@@ -42,6 +43,7 @@ export class AuditService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @InjectRepository(AuditLog, 'main')
     private readonly auditRepository: Repository<AuditLog>,
+    private readonly cls: ClsService,
   ) {}
 
   /**
@@ -93,6 +95,10 @@ export class AuditService implements OnModuleInit, OnModuleDestroy {
     const ipAddress = context.ipAddress ?? actor?.ipAddress;
     const metadata =
       context.metadata || requestId ? { ...(context.metadata ?? {}), ...(requestId ? { requestId } : {}) } : null;
+
+    // Get tenantId from ClsService (set by ApiKeyGuard/TenantContextMiddleware)
+    const tenantId = this.cls.get<string>('tenantId');
+
     const auditLog = this.auditRepository.create({
       action,
       severity,
@@ -107,6 +113,7 @@ export class AuditService implements OnModuleInit, OnModuleDestroy {
       statusCode: context.statusCode || null,
       metadata,
       errorMessage: context.errorMessage || null,
+      tenantId: tenantId || null,
     });
 
     // Audit logging is best-effort: a failed insert must never turn a succeeded operation into a 500

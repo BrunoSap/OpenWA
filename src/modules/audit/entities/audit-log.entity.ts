@@ -123,6 +123,13 @@ export class AuditLog {
   @Column({ type: 'text', nullable: true })
   errorMessage!: string | null;
 
+  /**
+   * Multi-tenant SaaS: which tenant this audit log belongs to
+   * Nullable for backward compatibility during migration
+   */
+  @Column({ type: 'uuid', nullable: true })
+  tenantId!: string | null;
+
   @Index()
   @CreateDateColumn()
   createdAt!: Date;
