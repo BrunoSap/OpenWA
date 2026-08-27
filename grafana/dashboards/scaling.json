@@ -1,0 +1,103 @@
+{
+  "dashboard": {
+    "title": "OpenWA - Multi-Replica Scaling",
+    "tags": ["openwa", "scaling", "replicas"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Replicas Up",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "count(up{job=\"openwa-api\"} == 1)",
+            "legendFormat": "Healthy Replicas"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Request Rate (per replica)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{job=\"openwa-api\"}[5m])",
+            "legendFormat": "{{ instance }}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}
+      },
+      {
+        "id": 3,
+        "title": "Latency p95 (per replica)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=\"openwa-api\"}[5m]))",
+            "legendFormat": "{{ instance }} p95"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{job=\"openwa-api\"}[5m]))",
+            "legendFormat": "{{ instance }} p50"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}
+      },
+      {
+        "id": 4,
+        "title": "Memory Usage (per replica)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "container_memory_usage_bytes{name=~\"openwa-api.*\"} / container_spec_memory_limit_bytes",
+            "legendFormat": "{{ name }}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12}
+      },
+      {
+        "id": 5,
+        "title": "Error Rate (per replica)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{job=\"openwa-api\",status=~\"5..\"}[5m])) by (instance) / sum(rate(http_requests_total{job=\"openwa-api\"}[5m])) by (instance)",
+            "legendFormat": "{{ instance }}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12}
+      },
+      {
+        "id": 6,
+        "title": "Active Sessions (per replica)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "whatsapp_sessions_active{job=\"openwa-api\"}",
+            "legendFormat": "{{ instance }}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20}
+      },
+      {
+        "id": 7,
+        "title": "BullMQ Jobs (distributed)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "bullmq_jobs_completed_total{job=\"openwa-api\"}",
+            "legendFormat": "{{ instance }} completed"
+          },
+          {
+            "expr": "bullmq_jobs_failed_total{job=\"openwa-api\"}",
+            "legendFormat": "{{ instance }} failed"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20}
+      }
+    ],
+    "time": {"from": "now-1h", "to": "now"},
+    "refresh": "10s"
+  }
+}
