@@ -1,21 +1,24 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Message } from '../message/entities/message.entity';
+import { ConversationSummary } from './entities/conversation-summary.entity';
 import { ConversationMemoryService } from './services/conversation-memory.service';
+import { MemorySummarizationService } from './services/memory-summarization.service';
 
 /**
  * Phase 5: Long-term memory module.
  *
- * Wires the ConversationMemoryService with the Message repository on the named 'data' connection.
- * The forFeature connection arg is mandatory — it makes @InjectRepository(Message, 'data') resolve.
- * Service is exported so future plans (API endpoints, summarization) can reuse it.
+ * Wires the ConversationMemoryService and MemorySummarizationService with their repositories
+ * on the named 'data' connection. The forFeature connection arg is mandatory — it makes
+ * @InjectRepository(Entity, 'data') resolve.
  *
- * The memory entity glob is registered in app.module.ts and data-source.ts for future entities
- * (this plan adds no new entity file, but Plan 02/03 will).
+ * Services are exported so future plans (API endpoints, BullMQ processors) can reuse them.
+ *
+ * The memory entity glob is registered in app.module.ts and data-source.ts for future entities.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Message], 'data')],
-  providers: [ConversationMemoryService],
-  exports: [ConversationMemoryService],
+  imports: [TypeOrmModule.forFeature([Message, ConversationSummary], 'data')],
+  providers: [ConversationMemoryService, MemorySummarizationService],
+  exports: [ConversationMemoryService, MemorySummarizationService],
 })
 export class MemoryModule {}

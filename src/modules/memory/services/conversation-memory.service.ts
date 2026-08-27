@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Message } from '../../message/entities/message.entity';
+import { Message, MessageDirection } from '../../message/entities/message.entity';
+import { ConversationSummary } from '../entities/conversation-summary.entity';
+import { ConversationContextDto } from '../dto/conversation-context.dto';
 
 /**
  * Phase 5: Long-term memory service for conversation recall.
@@ -18,6 +20,8 @@ export class ConversationMemoryService {
   constructor(
     @InjectRepository(Message, 'data')
     private readonly messageRepo: Repository<Message>,
+    @InjectRepository(ConversationSummary, 'data')
+    private readonly summaryRepo: Repository<ConversationSummary>,
   ) {}
 
   /**
@@ -49,5 +53,64 @@ export class ConversationMemoryService {
       order: { createdAt: 'DESC' },
       take: clampedLimit,
     });
+  }
+
+  /**
+   * Build LLM context for a user: recent messages + summary of older messages (MEM-04).
+   *
+   * @param userId - User identifier to fetch context for
+   * @param windowSize - Number of recent messages to include (default 20)
+   * @returns Context object with summary, recent messages, and total count
+   *
+   * @remarks
+   * - Recent messages are the newest `windowSize` messages, mapped to LLM role format
+   * - Role: 'user' for INCOMING (user sent), 'assistant' for OUTGOING (bot replied)
+   * - Summary is null when total <= windowSize; otherwise the stored summary text
+   * - When total > windowSize but no summary exists, returns placeholder text
+   * - Redis cache for summary is optional (RESEARCH: degrades to direct DB query)
+   */
+  async buildLLMContext(
+    userId: string,
+    windowSize = 20,
+  ): Promise<ConversationContextDto> {
+    // Fetch recent messages (sliding window)
+    const recentMessages = await this.getRecentMessages(userId, windowSize);
+
+    // Count total messages for this user
+    const totalMessages = await this.messageRepo.count({
+      where: { userId },
+    });
+
+    // Map recent messages to LLM role format
+    const recentMessagesFormatted = recentMessages.map((msg) => ({
+      role: msg.direction === MessageDirection.INCOMING ? ('user' as const) : ('assistant' as const),
+      content: msg.body || '',
+      timestamp: msg.createdAt,
+    }));
+
+    // Determine summary: null if under window, else stored summary or placeholder
+    let summary: string | null = null;
+
+    if (totalMessages > windowSize) {
+      // Fetch the most recent summary for this user
+      const summaryRow = await this.summaryRepo.findOne({
+        where: { userId },
+        order: { updatedAt: 'DESC' },
+      });
+
+      if (summaryRow) {
+        summary = summaryRow.text;
+      } else {
+        // Placeholder when no summary exists yet
+        const olderCount = totalMessages - windowSize;
+        summary = `[${olderCount} older messages not yet summarized]`;
+      }
+    }
+
+    return {
+      summary,
+      recentMessages: recentMessagesFormatted,
+      totalMessages,
+    };
   }
 }
