@@ -447,6 +447,56 @@ OpenWA é uma plataforma completa de automação WhatsApp com inteligência arti
 - [ ] 09-04-PLAN.md — Onboarding: signup endpoint + provisioning + React wizard (Wave 4)
 - [ ] 09-05-PLAN.md — RLS: PostgreSQL RLS policies + admin bypass + audit trail (Wave 5)
 
+## Phase 10: Advanced Analytics Features 🎯
+
+**Goal:** Completar analytics com features "Nice-to-Have" deferidas em Phase 6 — intent classification, funnel tracking, satisfaction surveys, predictive models
+
+**Why this matters:** Phase 6 entregou analytics foundation (event collection + aggregation + API). Phase 10 adiciona intelligence layer: LLM-powered classification, conversion optimization, feedback loop, e ML predictions transformando analytics reativo em proativo.
+
+**Deliverables:**
+
+### 10.1. Intent Classification (DASH-03)
+- LLM-powered intent extraction via Anthropic Batch API + prompt caching
+- Per-tenant intent taxonomy (CRUD endpoints)
+- Top intents dashboard (distribution + trends)
+- Intent-based routing rules foundation
+
+### 10.2. Intake Funnel Analytics (DASH-04)
+- Funnel stages tracking: initiated → qualified → data_collected → exported → converted
+- Drop-off rates per stage via SQL LAG window function
+- A/B test support (consistent hashing variant assignment)
+- Conversion optimization recommendations
+
+### 10.3. Satisfaction Tracking
+- Post-conversation NPS/CSAT surveys via WhatsApp interactive messages
+- BullMQ delayed jobs (5min after conversation ends)
+- Webhook handler for list_reply responses
+- Correlation analytics (resolved vs escalated satisfaction)
+
+### 10.4. Predictive Analytics
+- Conversation outcome prediction (TensorFlow.js binary classification)
+- Peak volume forecasting (LSTM time-series model)
+- Anomaly detection (autoencoder reconstruction error)
+- Predictive insights dashboard widget
+
+**Success Criteria:**
+- ✅ Intent classification accuracy >80%
+- ✅ Funnel conversion rates tracked accurately per variant
+- ✅ CSAT survey response rate >30%
+- ✅ Predictive models accuracy >70%
+- ✅ Anthropic Batch API cost reduction >80% via prompt caching
+
+**Dependencies:** Phase 6 (analytics foundation), Phase 1-4 (intake funnel instrumentation)
+
+**Effort:** ~7-10 dias (4 plans, 3 waves)
+
+**Plans:** 4 plans (3 waves)
+
+- [ ] 10-01-PLAN.md — Tracer E2E: Intent classification via Anthropic Batch API + prompt caching (taxonomy + batch processor + /intents endpoint) (Wave 1)
+- [ ] 10-02-PLAN.md — Funnel analytics: stage tracking + drop-off rates + A/B testing (consistent hashing + /funnel endpoint) (Wave 2)
+- [ ] 10-03-PLAN.md — Satisfaction surveys: WhatsApp NPS/CSAT + webhook handler + /satisfaction endpoint (Wave 2)
+- [ ] 10-04-PLAN.md — Predictive models: TensorFlow.js training + inference API + /predict endpoints (Wave 3)
+
 ---
 
 ## Backlog & Future Phases
