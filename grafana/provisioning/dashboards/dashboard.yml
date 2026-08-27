@@ -3,11 +3,11 @@ apiVersion: 1
 providers:
   - name: 'OpenWA Dashboards'
     orgId: 1
-    folder: 'OpenWA'
+    folder: ''
     type: file
     disableDeletion: false
     updateIntervalSeconds: 10
     allowUiUpdates: true
     options:
-      path: /etc/grafana/provisioning/dashboards
+      path: /var/lib/grafana/dashboards
       foldersFromFilesStructure: true

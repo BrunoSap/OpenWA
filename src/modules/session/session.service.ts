@@ -17,6 +17,7 @@ import { setTimeout } from 'node:timers/promises';
 import { ClsService } from 'nestjs-cls';
 import { EngineTransportError } from '../../common/errors/engine-transport.error';
 import { Session, SessionStatus } from './entities/session.entity';
+import { SessionRepository } from './session.repository';
 import { CreateSessionDto, SessionConfigResponseDto, UpdateSessionConfigDto } from './dto';
 import { EngineRegistry } from '../../engine/engine-registry.service';
 import { SessionLivenessWatchdog } from './session-liveness-watchdog.service';

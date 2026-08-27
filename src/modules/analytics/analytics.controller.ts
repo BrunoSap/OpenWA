@@ -18,7 +18,10 @@ import {
 } from './dto/analytics-response.dto';
 import { IntentQueryDto } from './dto/intent-query.dto';
 import { IntentResponseDto } from './dto/intent-response.dto';
+import { IntentTaxonomyDto } from './dto/intent-taxonomy.dto';
 import { AnalyticsIntentClassification } from './entities/analytics-intent-classification.entity';
+import { AnalyticsIntentTaxonomy } from './entities/analytics-intent-taxonomy.entity';
+import { AnalyticsIntentRoutingRule } from './entities/analytics-intent-routing-rule.entity';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 
@@ -44,6 +47,10 @@ export class AnalyticsController {
     private readonly alertRuleRepository: Repository<AnalyticsAlertRule>,
     @InjectRepository(AnalyticsIntentClassification, 'data')
     private readonly intentClassificationRepository: Repository<AnalyticsIntentClassification>,
+    @InjectRepository(AnalyticsIntentTaxonomy, 'data')
+    private readonly intentTaxonomyRepository: Repository<AnalyticsIntentTaxonomy>,
+    @InjectRepository(AnalyticsIntentRoutingRule, 'data')
+    private readonly intentRoutingRuleRepository: Repository<AnalyticsIntentRoutingRule>,
   ) {}
 
   /**
@@ -312,6 +319,135 @@ export class AnalyticsController {
       topIntents,
       trendsOverTime,
     };
+  }
+
+  /**
+   * Get all intent taxonomies (Phase 10 Plan 01 Task 2).
+   *
+   * @returns Array of intent taxonomies for the tenant
+   */
+  @Get('intents/taxonomy')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Get intent taxonomies' })
+  @ApiResponse({ status: 200, description: 'Intent taxonomies', type: [AnalyticsIntentTaxonomy] })
+  @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
+  async getIntentTaxonomies(): Promise<AnalyticsIntentTaxonomy[]> {
+    // Default to 'global' tenant (Phase 9 multi-tenancy will add tenant context)
+    return this.intentTaxonomyRepository.find({
+      where: { tenant_id: 'global' },
+      order: { intent_name: 'ASC' },
+    });
+  }
+
+  /**
+   * Create a new intent in taxonomy (Phase 10 Plan 01 Task 2).
+   *
+   * @param body - Intent taxonomy data
+   * @returns Created intent taxonomy
+   */
+  @Post('intents/taxonomy')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Create intent in taxonomy' })
+  @ApiResponse({ status: 201, description: 'Intent created', type: AnalyticsIntentTaxonomy })
+  @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
+  @ApiResponse({ status: 409, description: 'Intent name already exists for tenant' })
+  async createIntentTaxonomy(@Body() body: IntentTaxonomyDto): Promise<AnalyticsIntentTaxonomy> {
+    // Check for duplicate (tenant_id, intent_name)
+    const existing = await this.intentTaxonomyRepository.findOne({
+      where: { tenant_id: 'global', intent_name: body.intent_name },
+    });
+
+    if (existing) {
+      throw new Error(`Intent '${body.intent_name}' already exists for tenant 'global'`);
+    }
+
+    const taxonomy = this.intentTaxonomyRepository.create({
+      tenant_id: 'global',
+      intent_name: body.intent_name,
+      intent_description: body.intent_description,
+      examples: body.examples,
+    });
+
+    return this.intentTaxonomyRepository.save(taxonomy);
+  }
+
+  /**
+   * Update an intent in taxonomy (Phase 10 Plan 01 Task 2).
+   *
+   * @param id - Intent taxonomy ID
+   * @param body - Updated intent data
+   * @returns Updated intent taxonomy
+   */
+  @Post('intents/taxonomy/:id')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Update intent in taxonomy' })
+  @ApiResponse({ status: 200, description: 'Intent updated', type: AnalyticsIntentTaxonomy })
+  @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
+  @ApiResponse({ status: 404, description: 'Intent not found' })
+  async updateIntentTaxonomy(
+    @Param('id') id: string,
+    @Body() body: IntentTaxonomyDto,
+  ): Promise<AnalyticsIntentTaxonomy> {
+    const taxonomy = await this.intentTaxonomyRepository.findOne({ where: { id: parseInt(id) } });
+
+    if (!taxonomy) {
+      throw new Error(`Intent taxonomy with ID ${id} not found`);
+    }
+
+    taxonomy.intent_description = body.intent_description;
+    taxonomy.examples = body.examples;
+
+    return this.intentTaxonomyRepository.save(taxonomy);
+  }
+
+  /**
+   * Delete an intent from taxonomy (Phase 10 Plan 01 Task 2).
+   *
+   * @param id - Intent taxonomy ID
+   */
+  @Delete('intents/taxonomy/:id')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Delete intent from taxonomy' })
+  @ApiResponse({ status: 200, description: 'Intent deleted' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
+  async deleteIntentTaxonomy(@Param('id') id: string): Promise<void> {
+    await this.intentTaxonomyRepository.delete(parseInt(id));
+  }
+
+  /**
+   * Get all intent routing rules (Phase 10 Plan 01 Task 2).
+   *
+   * @returns Array of routing rules
+   */
+  @Get('intents/routing-rules')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Get intent routing rules' })
+  @ApiResponse({
+    status: 200,
+    description: 'Routing rules',
+    type: [AnalyticsIntentRoutingRule],
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
+  async getIntentRoutingRules(): Promise<AnalyticsIntentRoutingRule[]> {
+    return this.intentRoutingRuleRepository.find({ order: { created_at: 'DESC' } });
+  }
+
+  /**
+   * Create a new intent routing rule (Phase 10 Plan 01 Task 2).
+   *
+   * @param body - Routing rule data
+   * @returns Created routing rule
+   */
+  @Post('intents/routing-rules')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Create intent routing rule' })
+  @ApiResponse({ status: 201, description: 'Routing rule created', type: AnalyticsIntentRoutingRule })
+  @ApiResponse({ status: 401, description: 'Unauthorized - requires OPERATOR api-key' })
+  async createIntentRoutingRule(
+    @Body() body: Partial<AnalyticsIntentRoutingRule>,
+  ): Promise<AnalyticsIntentRoutingRule> {
+    const rule = this.intentRoutingRuleRepository.create(body);
+    return this.intentRoutingRuleRepository.save(rule);
   }
 
   /**

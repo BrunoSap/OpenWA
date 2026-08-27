@@ -8,6 +8,7 @@ import { AnalyticsAggregate } from './entities/analytics-aggregate.entity';
 import { AnalyticsAlertRule } from './entities/analytics-alert-rule.entity';
 import { AnalyticsIntentTaxonomy } from './entities/analytics-intent-taxonomy.entity';
 import { AnalyticsIntentClassification } from './entities/analytics-intent-classification.entity';
+import { AnalyticsIntentRoutingRule } from './entities/analytics-intent-routing-rule.entity';
 import { AnalyticsEventsService } from './services/analytics-events.service';
 import { AnalyticsAggregationService } from './services/analytics-aggregation.service';
 import { AnalyticsExportService } from './services/analytics-export.service';
@@ -50,6 +51,7 @@ import { createLogger } from '../../common/services/logger.service';
         AnalyticsAlertRule,
         AnalyticsIntentTaxonomy,
         AnalyticsIntentClassification,
+        AnalyticsIntentRoutingRule,
       ],
       'data',
     ),

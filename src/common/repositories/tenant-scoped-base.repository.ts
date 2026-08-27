@@ -93,7 +93,7 @@ export abstract class TenantScopedRepository<T extends ObjectLiteral> {
       tenantId: this.getTenantId(),
     } as any);
     const saved = await this.repository.save(entity);
-    return saved as T;
+    return saved as unknown as T;
   }
 
   /**
@@ -107,7 +107,7 @@ export abstract class TenantScopedRepository<T extends ObjectLiteral> {
     }
     Object.assign(entity, data);
     const saved = await this.repository.save(entity);
-    return saved as T;
+    return saved as unknown as T;
   }
 
   /**

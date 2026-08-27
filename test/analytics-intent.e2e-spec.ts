@@ -185,4 +185,119 @@ describe('Intent Classification E2E (Phase 10)', () => {
       expect(faqIntent.percentage).toBeCloseTo(50.0, 1);
     });
   });
+
+  describe('Intent Taxonomy CRUD (Task 2)', () => {
+    it('POST /api/analytics/intents/taxonomy should create new intent', async () => {
+      const newIntent = {
+        intent_name: 'Cotação',
+        intent_description: 'Pedidos de cotação de preço',
+        examples: ['Quanto custa?', 'Quero uma cotação'],
+      };
+
+      const response = await request(app.getHttpServer())
+        .post('/api/analytics/intents/taxonomy')
+        .set('X-API-Key', apiKey)
+        .send(newIntent)
+        .expect(201);
+
+      expect(response.body).toHaveProperty('id');
+      expect(response.body.intent_name).toBe('Cotação');
+      expect(response.body.intent_description).toBe('Pedidos de cotação de preço');
+    });
+
+    it('GET /api/analytics/intents/taxonomy should return all intents', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/analytics/intents/taxonomy')
+        .set('X-API-Key', apiKey)
+        .expect(200);
+
+      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body.length).toBeGreaterThanOrEqual(5); // At least default 5 intents
+    });
+
+    it('PUT /api/analytics/intents/taxonomy/:id should update intent', async () => {
+      // First create an intent
+      const createResponse = await request(app.getHttpServer())
+        .post('/api/analytics/intents/taxonomy')
+        .set('X-API-Key', apiKey)
+        .send({
+          intent_name: 'Test Intent',
+          intent_description: 'Original description',
+        });
+
+      const intentId = createResponse.body.id;
+
+      // Then update it
+      const updateResponse = await request(app.getHttpServer())
+        .post(`/api/analytics/intents/taxonomy/${intentId}`)
+        .set('X-API-Key', apiKey)
+        .send({
+          intent_name: 'Test Intent',
+          intent_description: 'Updated description',
+          examples: ['Example 1', 'Example 2'],
+        })
+        .expect(200);
+
+      expect(updateResponse.body.intent_description).toBe('Updated description');
+      expect(updateResponse.body.examples).toEqual(['Example 1', 'Example 2']);
+    });
+
+    it('DELETE /api/analytics/intents/taxonomy/:id should delete intent', async () => {
+      // First create an intent
+      const createResponse = await request(app.getHttpServer())
+        .post('/api/analytics/intents/taxonomy')
+        .set('X-API-Key', apiKey)
+        .send({
+          intent_name: 'To Be Deleted',
+          intent_description: 'Will be deleted',
+        });
+
+      const intentId = createResponse.body.id;
+
+      // Then delete it
+      await request(app.getHttpServer())
+        .delete(`/api/analytics/intents/taxonomy/${intentId}`)
+        .set('X-API-Key', apiKey)
+        .expect(200);
+
+      // Verify it's gone
+      const getResponse = await request(app.getHttpServer())
+        .get('/api/analytics/intents/taxonomy')
+        .set('X-API-Key', apiKey);
+
+      const deletedIntent = getResponse.body.find((i: any) => i.id === intentId);
+      expect(deletedIntent).toBeUndefined();
+    });
+  });
+
+  describe('Routing Rules CRUD (Task 2)', () => {
+    it('POST /api/analytics/intents/routing-rules should create routing rule', async () => {
+      const newRule = {
+        intent_name: 'Reclamação',
+        action: 'escalate',
+        action_config: { priority: 'high', notify: ['supervisor@example.com'] },
+        enabled: true,
+      };
+
+      const response = await request(app.getHttpServer())
+        .post('/api/analytics/intents/routing-rules')
+        .set('X-API-Key', apiKey)
+        .send(newRule)
+        .expect(201);
+
+      expect(response.body).toHaveProperty('id');
+      expect(response.body.intent_name).toBe('Reclamação');
+      expect(response.body.action).toBe('escalate');
+      expect(response.body.action_config).toEqual({ priority: 'high', notify: ['supervisor@example.com'] });
+    });
+
+    it('GET /api/analytics/intents/routing-rules should return all rules', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/analytics/intents/routing-rules')
+        .set('X-API-Key', apiKey)
+        .expect(200);
+
+      expect(Array.isArray(response.body)).toBe(true);
+    });
+  });
 });
