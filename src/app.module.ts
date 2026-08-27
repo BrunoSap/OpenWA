@@ -1,5 +1,5 @@
 import { Module, DynamicModule, Type } from '@nestjs/common';
-import { MiddlewareConsumer, NestModule, APP_GUARD } from '@nestjs/common';
+import { MiddlewareConsumer, NestModule, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -56,6 +56,7 @@ import { TenantModule } from './modules/tenant/tenant.module';
 import { TenantContextMiddleware } from './common/tenant/tenant-context.middleware';
 import { RateLimiterService } from './common/services/rate-limiter.service';
 import { TenantRateLimitGuard } from './common/guards/tenant-rate-limit.guard';
+import { RlsInterceptor } from './common/database/rls.interceptor';
 import { SqlitePermissionsBoot } from './database/sqlite-file-permissions';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
@@ -357,6 +358,10 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     {
       provide: APP_GUARD,
       useClass: TenantRateLimitGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RlsInterceptor,
     },
   ],
 })
