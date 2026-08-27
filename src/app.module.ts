@@ -1,5 +1,5 @@
 import { Module, DynamicModule, Type } from '@nestjs/common';
-import { MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { MiddlewareConsumer, NestModule, APP_GUARD } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -54,6 +54,8 @@ import { LLMModule } from './modules/llm/llm.module';
 import { TenantContextModule } from './common/tenant/tenant-context.module';
 import { TenantModule } from './modules/tenant/tenant.module';
 import { TenantContextMiddleware } from './common/tenant/tenant-context.middleware';
+import { RateLimiterService } from './common/services/rate-limiter.service';
+import { TenantRateLimitGuard } from './common/guards/tenant-rate-limit.guard';
 import { SqlitePermissionsBoot } from './database/sqlite-file-permissions';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
@@ -349,7 +351,14 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
   // Runs after every DataSource has initialized (they initialize eagerly in their provider
   // factories, and onApplicationBootstrap fires after every onModuleInit), tightening the SQLite
   // files that better-sqlite3 created with umask permissions back to owner-only.
-  providers: [SqlitePermissionsBoot],
+  providers: [
+    SqlitePermissionsBoot,
+    RateLimiterService,
+    {
+      provide: APP_GUARD,
+      useClass: TenantRateLimitGuard,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

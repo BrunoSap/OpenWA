@@ -10,6 +10,7 @@ import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, UpdateQueryBuilder, DeleteQueryBuilder, type QueryDeepPartialEntity } from 'typeorm';
 import { randomBytes } from 'crypto';
+import { ClsService } from 'nestjs-cls';
 import { ipMatches } from '../../common/utils/ip';
 import { hashApiKey } from './api-key-hash';
 import { ApiKey, ApiKeyRole } from './entities/api-key.entity';
@@ -58,6 +59,7 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
     private readonly apiKeyRepository: Repository<ApiKey>,
     private readonly usageTracker: ApiKeyUsageTracker,
     private readonly moduleRef: ModuleRef,
+    private readonly cls: ClsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -177,6 +179,9 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
     const keyHash = this.hashKey(rawKey);
     const keyPrefix = rawKey.substring(0, 12);
 
+    // Get tenantId from ClsService (set by ApiKeyGuard after authentication)
+    const tenantId = this.cls.get<string>('tenantId');
+
     const apiKey = this.apiKeyRepository.create({
       name: dto.name,
       keyHash,
@@ -185,12 +190,14 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
       allowedIps: dto.allowedIps || null,
       allowedSessions: dto.allowedSessions || null,
       expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+      tenantId: tenantId || null, // Stamp tenantId from context (null for legacy/bootstrap keys)
     });
 
     const saved = await this.apiKeyRepository.save(apiKey);
     this.logger.log(`API key created: ${saved.name}`, {
       keyId: saved.id,
       role: saved.role,
+      tenantId: saved.tenantId,
       action: 'api_key_created',
     });
 
