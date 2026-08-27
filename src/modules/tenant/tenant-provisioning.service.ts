@@ -6,6 +6,7 @@ import * as crypto from 'crypto';
 import { Tenant } from './tenant.entity';
 import { ApiKey, ApiKeyRole } from '../auth/entities/api-key.entity';
 import { Session, SessionStatus } from '../session/entities/session.entity';
+import { OnboardingState } from '../onboarding/entities/onboarding-state.entity';
 import { hashApiKey } from '../auth/api-key-hash';
 import { SignupDto } from './dto/signup.dto';
 import { ProvisioningResultDto } from './dto/provisioning-result.dto';
@@ -111,9 +112,16 @@ export class TenantProvisioningService {
 
       this.logger.log(`Created default session ${session.id} for tenant ${tenant.id}`);
 
-      // 6. Initialize onboarding state (created in Task 2)
-      // Deferred: OnboardingState entity will be created by Task 2
-      // For now, onboarding state is implicit (tenant just created)
+      // 6. Initialize onboarding state
+      const onboardingState = em.create(OnboardingState, {
+        tenantId: tenant.id,
+        currentStep: 'welcome',
+        completedSteps: [],
+        metadata: {},
+      });
+      await em.save(onboardingState);
+
+      this.logger.log(`Initialized onboarding state for tenant ${tenant.id}`);
 
       // 7. Return provisioning result
       const baseUrl = this.configService.get<string>('BASE_URL') || 'http://localhost:2785';
