@@ -72,6 +72,9 @@ export enum AuditAction {
   SUBSCRIPTION_DELETED = 'subscription-deleted',
   INVOICE_PAID = 'invoice-paid',
   PAYMENT_FAILED = 'payment-failed',
+
+  // Multi-tenant RLS events (Phase 09 Plan 05: RLS defense-in-depth)
+  CROSS_TENANT_QUERY = 'cross-tenant-query',
 }
 
 export enum AuditSeverity {
@@ -128,6 +131,13 @@ export class AuditLog {
 
   @Column({ type: 'text', nullable: true })
   errorMessage!: string | null;
+
+  /**
+   * Multi-tenant SaaS: actor identifier (email, user ID, admin username)
+   * Used for cross-tenant admin queries to identify who accessed what
+   */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  actor!: string | null;
 
   /**
    * Multi-tenant SaaS: which tenant this audit log belongs to

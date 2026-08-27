@@ -1400,3 +1400,267 @@ O dashboard oferece 5 views acessíveis via tabs de navegação:
 - **E2E auth test:** `test/analytics-dashboard-auth.e2e-spec.ts`
 - **Alert dispatcher:** `src/modules/analytics/services/analytics-alert-dispatch.service.ts`
 
+
+---
+
+## RLS Safety Net (Multi-Tenant SaaS)
+
+### Overview
+
+PostgreSQL Row-Level Security (RLS) provides defense-in-depth tenant isolation at the database level. RLS is a safety net that catches application bugs (forgotten WHERE tenantId clauses) before they cause cross-tenant data leaks.
+
+### Architecture
+
+**Defense-in-Depth Layers:**
+
+1. **Layer 1: Application-level scoping** (TenantScopedRepository)
+   - Primary mechanism
+   - Explicit WHERE tenantId in every query
+   - Fast, flexible, compile-time type safety
+
+2. **Layer 2: PostgreSQL RLS** (this guide)
+   - Safety net for application bugs
+   - Database-enforced tenant filtering
+   - Production-only (disabled in dev/staging for debugging)
+
+3. **Layer 3: Audit trail** (AuditCrossTenantService)
+   - Forensic logging for admin bypass
+   - Operator review for abuse detection
+   - All cross-tenant queries recorded
+
+### Enabling RLS
+
+**Environment Variable:**
+
+```bash
+RLS_ENABLED=true
+```
+
+**Migration:**
+
+```bash
+# Apply migration 012 (creates RLS policies for 9 tables)
+psql $DATABASE_URL < database/migrations/012-enable-rls-policies.sql
+```
+
+**Tables with RLS:**
+
+- sessions
+- api_keys
+- messages
+- webhooks
+- automation_rules
+- analytics_events
+- intake_leads
+- knowledge_base_documents
+- audit_logs
+
+### How RLS Works
+
+**RLS Policy:**
+
+```sql
+CREATE POLICY tenant_isolation_sessions ON sessions
+  FOR ALL
+  USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
+```
+
+**Session Variable:**
+
+The RlsInterceptor sets `app.tenant_id` before each request:
+
+```typescript
+// Interceptor runs after ApiKeyGuard (which sets tenantId in ClsService)
+await queryRunner.query(`SET LOCAL app.tenant_id = $1`, [tenantId]);
+```
+
+**Safe Failure Mode:**
+
+If `app.tenant_id` not set (missing tenant context), RLS rejects ALL rows:
+
+```sql
+-- Returns empty result (safe failure)
+SELECT * FROM sessions;
+```
+
+This prevents accidental data leaks when tenant context is missing.
+
+### Admin Bypass
+
+**Use Case:** Admin queries (cross-tenant reports, support, billing)
+
+**How to Bypass:**
+
+```typescript
+const queryRunner = dataSource.createQueryRunner();
+await queryRunner.connect();
+
+try {
+  // Disable RLS for admin query
+  await queryRunner.query(`SET LOCAL row_security = OFF`);
+  
+  // Admin sees all tenants
+  const allSessions = await queryRunner.query(`SELECT * FROM sessions`);
+  
+  // Log to audit trail
+  await auditCrossTenantService.logCrossTenantQuery(
+    'admin@example.com',
+    [tenantA.id, tenantB.id],
+    'SELECT * FROM sessions'
+  );
+} finally {
+  await queryRunner.release();
+}
+```
+
+**Security:**
+
+- Only `tenant_admin` role can disable `row_security`
+- All bypasses MUST be logged via `AuditCrossTenantService`
+- Operators review `audit_logs` for abuse detection
+
+### Troubleshooting
+
+**Symptom: Empty results when data should exist**
+
+```sql
+-- Check if session variable set
+SELECT current_setting('app.tenant_id', true);
+```
+
+**Cause:** RLS policy rejected rows (safe failure mode)
+
+**Solution:** Ensure `RlsInterceptor` runs after `ApiKeyGuard` sets tenant context
+
+---
+
+**Symptom: Policy violation error**
+
+```
+ERROR: new row violates row-level security policy for table "sessions"
+```
+
+**Cause:** Trying to insert/update row with wrong `tenant_id`
+
+**Solution:** Use `TenantScopedRepository` which auto-stamps `tenantId`
+
+---
+
+**Symptom: Performance degradation**
+
+**Cause:** RLS adds ~5-10% query overhead (PostgreSQL native filtering)
+
+**Solution:** Ensure indexes on `tenant_id` columns exist:
+
+```sql
+CREATE INDEX CONCURRENTLY idx_sessions_tenant_id ON sessions(tenant_id);
+```
+
+(Migration 009 already created these indexes)
+
+### Testing RLS
+
+**E2E Tests:**
+
+```bash
+# Run RLS isolation tests
+RLS_ENABLED=true npm run test:e2e -- rls-isolation.e2e-spec.ts
+
+# Run cross-tenant audit tests
+npm run test:e2e -- cross-tenant-audit.e2e-spec.ts
+```
+
+**Manual Testing:**
+
+```sql
+-- Set tenant context
+SET LOCAL app.tenant_id = '00000000-0000-0000-0000-000000000001';
+
+-- Query (should only return tenant A sessions)
+SELECT * FROM sessions;
+
+-- Admin bypass
+SET LOCAL row_security = OFF;
+SELECT * FROM sessions; -- Returns ALL tenants
+```
+
+### Best Practices
+
+1. **Always use TenantScopedRepository** in application code
+   - RLS is backup, not primary isolation mechanism
+   - Application-level scoping is faster and more flexible
+
+2. **Enable RLS only in production**
+   - Dev/staging: test application-level scoping without RLS interference
+   - Production: enable RLS as safety net
+
+3. **Log all admin bypasses**
+   - Use `AuditCrossTenantService.logCrossTenantQuery()`
+   - Include: admin user, queried tenant IDs, query text
+   - Review audit logs regularly
+
+4. **Monitor RLS performance**
+   - Add Prometheus metrics for query latency
+   - Alert if p95 latency increases >10% after RLS enabled
+   - Ensure `tenant_id` indexes exist on all tables
+
+### Configuration Reference
+
+**Environment Variables:**
+
+```bash
+# Enable RLS (default: false, dev/staging disabled)
+RLS_ENABLED=true
+
+# Database connection for RLS (uses 'data' connection)
+DATABASE_URL=postgresql://user:pass@localhost:5432/openwa
+```
+
+**RLS Config:**
+
+```typescript
+// src/common/database/rls.config.ts
+export const enableRLS = process.env.RLS_ENABLED === 'true';
+export const rlsBypassRoles = ['tenant_admin'];
+```
+
+**Bypass Roles:**
+
+- `tenant_admin` - Can execute `SET LOCAL row_security = OFF`
+- Grant with caution: only trusted admin users
+
+### Audit Log Format
+
+**Cross-Tenant Query:**
+
+```json
+{
+  "action": "CROSS_TENANT_QUERY",
+  "tenantId": null,
+  "actor": "admin@example.com",
+  "metadata": {
+    "adminUser": "admin@example.com",
+    "queriedTenantIds": ["tenant-a-id", "tenant-b-id"],
+    "query": "SELECT * FROM sessions WHERE tenant_id IN (?, ?)",
+    "timestamp": "2026-08-27T12:00:00Z"
+  }
+}
+```
+
+**Forensic Review:**
+
+```sql
+-- Find all cross-tenant queries by admin
+SELECT * FROM audit_logs 
+WHERE action = 'cross-tenant-query' 
+  AND actor = 'admin@example.com'
+ORDER BY created_at DESC;
+
+-- Find all queries accessing specific tenant
+SELECT * FROM audit_logs
+WHERE action = 'cross-tenant-query'
+  AND metadata::jsonb @> '{"queriedTenantIds": ["tenant-x-id"]}'::jsonb;
+```
+
+---
+
