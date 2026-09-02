@@ -1,29 +1,29 @@
 export class PredictionResponseDto {
-  conversationId: string;
+  conversationId!: string;
 
-  prediction: {
+  prediction!: {
     willEscalate: boolean;
     probability: number;
     confidence: 'low' | 'medium' | 'high';
   };
 
-  recommendation: string;
+  recommendation!: string;
 }
 
 export class VolumeForecastResponseDto {
-  forecast: Array<{
+  forecast!: Array<{
     hour: string;
     predicted_messages: number;
   }>;
 
-  peak: {
+  peak!: {
     hour: string;
     predicted_messages: number;
   };
 }
 
 export class AnomalyResponseDto {
-  anomalies: Array<{
+  anomalies!: Array<{
     timestamp: string;
     metric: string;
     score: number;

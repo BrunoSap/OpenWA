@@ -27,13 +27,19 @@ services:
       - QUEUE_BULL_REDIS_PORT=6379
       - EXECUTIONS_MODE=queue
 
-      # Authentication
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=admin
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-admin123}
+      # Authentication - User Management habilitado para criar owner account no primeiro acesso
+      - N8N_USER_MANAGEMENT_DISABLED=false
+
+      # Segurança - Desabilitar secure cookie para HTTP local
+      - N8N_SECURE_COOKIE=false
+
+      # Rate Limiting - Desabilitar para desenvolvimento local
+      - N8N_PUBLIC_API_RATE_LIMIT_ENABLED=false
+      - N8N_LOGIN_RATE_LIMIT_ENABLED=false
 
       # Webhooks
-      - WEBHOOK_URL=http://localhost:5678/
+      - N8N_WEBHOOK_URL=http://localhost:5678/
+      - N8N_EDITOR_BASE_URL=http://localhost:5678
       - N8N_HOST=0.0.0.0
       - N8N_PORT=5678
       - N8N_PROTOCOL=http

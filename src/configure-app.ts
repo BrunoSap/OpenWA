@@ -169,6 +169,8 @@ export function configureApp(app: INestApplication, options: ConfigureAppOptions
         req.path === '/socket.io' ||
         req.path.startsWith('/mcp/') ||
         req.path === '/mcp' ||
+        req.path === '/metrics' ||
+        req.path.startsWith('/metrics/') ||
         req.path.startsWith('/assets/');
       const documentRequest =
         req.method === 'GET' &&

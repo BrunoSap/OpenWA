@@ -18,7 +18,7 @@ export class AnalyticsAggregate {
   id!: number;
 
   /** Time bucket start (hour/day/week boundary). */
-  @Column({ type: 'timestamp' })
+  @Column({ type: 'datetime' })
   time_bucket!: Date;
 
   /** Aggregation granularity (hour, day, week). */

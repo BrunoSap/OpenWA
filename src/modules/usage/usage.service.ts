@@ -22,7 +22,7 @@ export class UsageService {
 
   constructor(
     private readonly cls: ClsService,
-    @InjectRepository(AnalyticsEvent, 'dataConnection')
+    @InjectRepository(AnalyticsEvent, 'data')
     private readonly analyticsEventRepository: Repository<AnalyticsEvent>,
     private readonly tenantService: TenantService,
   ) {

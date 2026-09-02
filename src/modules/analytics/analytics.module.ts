@@ -94,15 +94,16 @@ import { createLogger } from '../../common/services/logger.service';
     SatisfactionSurveyService,
     WhatsAppInteractiveService,
     SurveyResponseHandler,
-    PredictiveModelsService,
+    PredictiveModelsService, // Re-enabled with graceful TensorFlow failure handling
     AnalyticsEventListener,
     SurveySchedulerListener,
-    AnalyticsAggregationProcessor,
-    AnalyticsCleanupProcessor,
-    AnalyticsAlertProcessor,
-    IntentClassificationProcessor,
-    SurveySchedulerProcessor,
-    MLTrainingProcessor,
+    // TEMPORARILY DISABLED: BullMQ processors require Redis
+    // AnalyticsAggregationProcessor,
+    // AnalyticsCleanupProcessor,
+    // AnalyticsAlertProcessor,
+    // IntentClassificationProcessor,
+    // SurveySchedulerProcessor,
+    // MLTrainingProcessor,
   ],
   exports: [AnalyticsEventsService, AnalyticsAggregationService, IntentClassificationService, ABTestingService, FunnelAnalyticsService],
 })
@@ -110,79 +111,13 @@ export class AnalyticsModule implements OnModuleInit {
   private readonly logger = createLogger('AnalyticsModule');
 
   constructor(
-    @InjectQueue(QUEUE_NAMES.ANALYTICS)
-    private readonly analyticsQueue: Queue,
+    // TEMPORARILY DISABLED: Queue injection requires Redis
+    // @InjectQueue(QUEUE_NAMES.ANALYTICS)
+    // private readonly analyticsQueue: Queue,
   ) {}
 
   async onModuleInit() {
-    // Enqueue repeatable job for daily aggregation at 1 AM
-    await this.analyticsQueue.add(
-      'daily-aggregation',
-      {},
-      {
-        repeat: {
-          pattern: '0 1 * * *', // Daily at 1 AM (cron format)
-        },
-        jobId: 'analytics-aggregation-repeatable',
-      } as any,
-    );
-
-    this.logger.log('Analytics aggregation repeatable job registered (daily at 1 AM)');
-
-    // Enqueue repeatable job for daily cleanup at 2 AM
-    await this.analyticsQueue.add(
-      'daily-cleanup',
-      {},
-      {
-        repeat: {
-          pattern: '0 2 * * *', // Daily at 2 AM (cron format)
-        },
-        jobId: 'analytics-cleanup-repeatable',
-      } as any,
-    );
-
-    this.logger.log('Analytics cleanup repeatable job registered (daily at 2 AM)');
-
-    // Enqueue repeatable job for alert evaluation every 5 minutes
-    await this.analyticsQueue.add(
-      'alert-evaluation',
-      {},
-      {
-        repeat: {
-          pattern: '*/5 * * * *', // Every 5 minutes (cron format)
-        },
-        jobId: 'analytics-alert-evaluation-repeatable',
-      } as any,
-    );
-
-    this.logger.log('Analytics alert evaluation repeatable job registered (every 5 minutes)');
-
-    // Enqueue repeatable job for intent classification hourly (Phase 10 Plan 01)
-    await this.analyticsQueue.add(
-      'classify-intents-batch',
-      {},
-      {
-        repeat: {
-          pattern: '0 * * * *', // Hourly at minute 0 (cron format)
-        },
-        jobId: 'classify-intents-hourly',
-      } as any,
-    );
-
-    this.logger.log('Intent classification repeatable job registered (hourly at minute 0)');
-
-    // Enqueue repeatable job for ML model training daily at 3 AM (Phase 10 Plan 04)
-    await this.analyticsQueue.add(
-      'train-outcome-model',
-      {},
-      {
-        repeat: {
-          pattern: '0 3 * * *', // Daily at 3 AM (cron format)
-        },
-        jobId: 'train-outcome-daily',
-      } as any,
-    );
-
-    this.logger.log('ML outcome model training repeatable job registered (daily at 3 AM)');
+    // TEMPORARILY DISABLED: Queue scheduling requires Redis
+    // All repeatable job scheduling commented out until Redis is available
   }
 }

@@ -3,9 +3,19 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MLModelVersion } from '../entities/ml-model-version.entity';
 import { AnalyticsEvent } from '../entities/analytics-event.entity';
-import * as tf from '@tensorflow/tfjs-node';
 import * as fs from 'fs';
 import * as path from 'path';
+
+// Lazy load TensorFlow to allow graceful failure
+let tf: typeof import('@tensorflow/tfjs-node') | null = null;
+let tfLoadError: Error | null = null;
+
+try {
+  tf = require('@tensorflow/tfjs-node');
+} catch (error) {
+  tfLoadError = error as Error;
+  console.warn('[PredictiveModelsService] TensorFlow not available:', error instanceof Error ? error.message : String(error));
+}
 
 interface ConversationFeatures {
   message_count: number;
@@ -46,10 +56,15 @@ export class PredictiveModelsService {
     @InjectRepository(AnalyticsEvent, 'data')
     private readonly analyticsEventRepo: Repository<AnalyticsEvent>,
   ) {
-    this.mlModelsDir = process.env.ML_MODELS_DIR || './ml-models';
+    this.mlModelsDir = process.env.ML_MODELS_DIR || '/app/data/ml-models';
     // Ensure ML models directory exists
-    if (!fs.existsSync(this.mlModelsDir)) {
-      fs.mkdirSync(this.mlModelsDir, { recursive: true });
+    try {
+      if (!fs.existsSync(this.mlModelsDir)) {
+        fs.mkdirSync(this.mlModelsDir, { recursive: true });
+        this.logger.log(`Created ML models directory: ${this.mlModelsDir}`);
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to create ML models directory: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -85,7 +100,7 @@ export class PredictiveModelsService {
       : 0;
 
     const messageLengths = messageEvents
-      .map((e) => e.payload?.user_message_length || e.payload?.message_text?.length || 0)
+      .map((e) => e.payload?.user_message_length || (e.payload?.message_text as any)?.length || 0)
       .filter((l) => l > 0);
     const avgMessageLength = messageLengths.length > 0
       ? messageLengths.reduce((sum, l) => sum + l, 0) / messageLengths.length
@@ -120,7 +135,10 @@ export class PredictiveModelsService {
   /**
    * Build outcome prediction model architecture per RESEARCH.md L715-732
    */
-  buildOutcomePredictionModel(): tf.Sequential {
+  buildOutcomePredictionModel(): any {
+    if (!tf) {
+      throw new Error('TensorFlow is not available. Please check Docker build configuration.');
+    }
     const model = tf.sequential({
       layers: [
         tf.layers.dense({ inputShape: [9], units: 16, activation: 'relu' }),
@@ -143,6 +161,10 @@ export class PredictiveModelsService {
    * Train outcome prediction model on last 30 days of conversation data
    */
   async trainOutcomeModel(): Promise<TrainingResult> {
+    if (!tf) {
+      this.logger.warn('TensorFlow not available, skipping model training');
+      throw new Error('TensorFlow is not available. ML features are disabled.');
+    }
     const startTime = Date.now();
     this.logger.log('Starting outcome model training...');
 
@@ -163,7 +185,7 @@ export class PredictiveModelsService {
     this.logger.log(`Training on ${limitedData.length} conversations`);
 
     // Prepare tensors
-    const features = tf.tensor2d(
+    const features = tf!.tensor2d(
       limitedData.map((d) => [
         d.message_count,
         d.avg_latency_ms,
@@ -176,7 +198,7 @@ export class PredictiveModelsService {
         d.time_since_last_message,
       ]),
     );
-    const labels = tf.tensor2d(limitedData.map((d) => [d.label_escalated]));
+    const labels = tf!.tensor2d(limitedData.map((d) => [d.label_escalated]));
 
     // Build and train model
     const model = this.buildOutcomePredictionModel();
@@ -186,10 +208,10 @@ export class PredictiveModelsService {
       batchSize: 32,
       validationSplit: 0.2,
       callbacks: {
-        onEpochEnd: (epoch, logs) => {
+        onEpochEnd: (epoch: number, logs: any) => {
           if (epoch % 10 === 0 || epoch === 49) {
             this.logger.log(
-              `Epoch ${epoch}: loss=${logs.loss.toFixed(4)}, acc=${logs.acc.toFixed(4)}, val_acc=${logs.val_acc.toFixed(4)}`,
+              `Epoch ${epoch}: loss=${logs?.loss.toFixed(4)}, acc=${logs?.acc.toFixed(4)}, val_acc=${logs?.val_acc.toFixed(4)}`,
             );
           }
         },
@@ -382,6 +404,9 @@ export class PredictiveModelsService {
    * Predict conversation outcome (inference)
    */
   async predictOutcome(conversationId: string): Promise<PredictionResponse> {
+    if (!tf) {
+      throw new Error('TensorFlow is not available. ML features are disabled.');
+    }
     // Load trained model
     const modelPath = path.join(this.mlModelsDir, 'outcome-model', 'model.json');
     if (!fs.existsSync(modelPath)) {
@@ -406,7 +431,7 @@ export class PredictiveModelsService {
 
     // Run inference
     const input = tf.tensor2d([featureArray]);
-    const prediction = model.predict(input) as tf.Tensor;
+    const prediction = model.predict(input) as any;
     const probability = (await prediction.data())[0];
 
     // Compute confidence level
@@ -445,7 +470,10 @@ export class PredictiveModelsService {
   /**
    * Build volume forecast LSTM model (foundation)
    */
-  buildVolumeForecastModel(): tf.Sequential {
+  buildVolumeForecastModel(): any {
+    if (!tf) {
+      throw new Error('TensorFlow is not available. ML features are disabled.');
+    }
     return tf.sequential({
       layers: [
         tf.layers.lstm({ inputShape: [24, 1], units: 50, returnSequences: true }),
@@ -458,7 +486,10 @@ export class PredictiveModelsService {
   /**
    * Build anomaly detection autoencoder model (foundation)
    */
-  buildAnomalyDetectionModel(): tf.Sequential {
+  buildAnomalyDetectionModel(): any {
+    if (!tf) {
+      throw new Error('TensorFlow is not available. ML features are disabled.');
+    }
     return tf.sequential({
       layers: [
         // Encoder

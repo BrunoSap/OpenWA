@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Message } from '../../message/entities/message.entity';
 import { createLogger } from '../../../common/services/logger.service';
@@ -25,6 +25,7 @@ export class MemoryCleanupService {
   constructor(
     @InjectRepository(Message, 'data')
     private readonly messageRepository: Repository<Message>,
+    @InjectDataSource('data')
     private readonly dataSource: DataSource,
   ) {}
 

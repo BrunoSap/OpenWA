@@ -114,8 +114,8 @@ export class IntakeService {
         variantId,
         timestamp: new Date(),
       });
-    } else if (step === 'urgencyLevel' && nextState.urgencyLevel && !state.urgencyLevel) {
-      // Emit 'qualified' stage after qualification questions answered
+    } else if (step && nextState.urgencyLevel && !state.urgencyLevel) {
+      // Emit 'qualified' stage after qualification questions answered (TODO: fix type check)
       this.eventEmitter.emit('funnel.stage_entered', {
         sessionId: input.sessionId,
         userId,

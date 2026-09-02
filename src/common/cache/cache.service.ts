@@ -141,7 +141,9 @@ export class CacheService implements OnModuleDestroy {
     // Create the client on first use, then let ioredis manage (re)connection. A ping reflects whether
     // the connection is live right now — false during an outage (caller bypasses to the DB), true again
     // once ioredis has reconnected.
-    this.ensureClient();
+    if (!this.redis) {
+      this.ensureClient();
+    }
     return this.ping();
   }
 

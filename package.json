@@ -101,6 +101,7 @@
     "@socket.io/redis-adapter": "^8.3.0",
     "@tensorflow/tfjs-node": "^4.22.0",
     "@whiskeysockets/baileys": "7.0.0-rc14",
+    "@willsoto/nestjs-prometheus": "^6.1.0",
     "adm-zip": "^0.6.0",
     "archiver": "^8.0.0",
     "audio-decode": "^2.2.3",
@@ -114,6 +115,7 @@
     "ioredis": "^6.0.0",
     "nestjs-cls": "^6.2.2",
     "pg": "^8.23.0",
+    "prom-client": "^15.1.3",
     "qrcode": "^1.5.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
@@ -124,6 +126,7 @@
     "tar-stream": "^3.2.0",
     "typeorm": "^1.1.0",
     "undici": "^8.10.0",
+    "uuid": "^14.0.2",
     "whatsapp-web.js": "1.34.7"
   },
   "devDependencies": {
@@ -144,6 +147,7 @@
     "@types/qrcode": "^1.5.5",
     "@types/supertest": "^7.2.1",
     "@types/tar-stream": "^3.1.4",
+    "@types/uuid": "^10.0.0",
     "concurrently": "^10.0.4",
     "eslint": "^10.8.1",
     "eslint-config-prettier": "^10.0.1",

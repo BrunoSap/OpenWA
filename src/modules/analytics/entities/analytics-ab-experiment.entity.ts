@@ -34,11 +34,11 @@ export class AnalyticsABExperiment {
   variant_names?: string[];
 
   /** Experiment start date. */
-  @Column({ type: 'timestamp' })
+  @Column({ type: 'datetime' })
   start_date!: Date;
 
   /** Experiment end date (nullable for ongoing experiments). */
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: 'datetime', nullable: true })
   end_date?: Date;
 
   /** Whether the experiment is currently active. */

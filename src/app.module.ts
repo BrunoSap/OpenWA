@@ -1,5 +1,6 @@
 import { Module, DynamicModule, Type } from '@nestjs/common';
-import { MiddlewareConsumer, NestModule, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/common';
+import { MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';

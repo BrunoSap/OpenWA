@@ -1,0 +1,660 @@
+{
+  "name": "WhatsApp Unified Bot - SECURE PRODUCTION",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-message",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-700, 300],
+      "id": "webhook-openwa",
+      "name": "Webhook OpenWA",
+      "webhookId": "71e84c0d-8924-446e-94c8-a8aeb268c779"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "text",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "text-check",
+                    "leftValue": "={{ $json.body.data.type }}",
+                    "rightValue": "text",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "voice",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "voice-check",
+                    "leftValue": "={{ $json.body.data.type }}",
+                    "rightValue": "voice",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "image",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "image-check",
+                    "leftValue": "={{ $json.body.data.type }}",
+                    "rightValue": "image",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "document",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "document-check",
+                    "leftValue": "={{ $json.body.data.type }}",
+                    "rightValue": "document",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [-460, 300],
+      "id": "detect-type",
+      "name": "Detectar Tipo"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === TEXTO ===\nconst body = $('Webhook OpenWA').item.json.body;\nconst data = body.data || {};\n\nconsole.log('[TEXT] chatId:', data.chatId);\nconsole.log('[TEXT] message:', data.body);\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    text: data.body || '',\n    inputType: 'text'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-220, 140],
+      "id": "process-text",
+      "name": "Processar Texto"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === ÁUDIO ===\nconst body = $('Webhook OpenWA').item.json.body;\nconst data = body.data || {};\nconst media = data.media || {};\n\nif (!media.data) {\n  throw new Error('media.data ausente');\n}\n\nconst audioBase64 = media.data;\nconst audioBuffer = Buffer.from(audioBase64, 'base64');\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    inputType: 'voice'\n  },\n  binary: {\n    data: {\n      data: audioBuffer.toString('base64'),\n      mimeType: media.mimetype || 'audio/ogg',\n      fileName: 'audio.ogg'\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-220, 300],
+      "id": "process-audio",
+      "name": "Processar Áudio"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "file",
+              "inputDataFieldName": "=data",
+              "parameterType": "formBinaryData"
+            },
+            {
+              "name": "model",
+              "value": "whisper-large-v3-turbo"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [40, 300],
+      "id": "transcribe-groq",
+      "name": "Transcrever Áudio",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "groq-api-key",
+          "name": "Groq API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $('Webhook OpenWA').item.json.body;\nconst data = body.data || {};\nconst transcription = $json.text || '';\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    text: `[🎤 ÁUDIO TRANSCRITO]\\n${transcription}`,\n    inputType: 'voice'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [280, 300],
+      "id": "format-audio",
+      "name": "Formatar Áudio"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === IMAGEM ===\nconst body = $('Webhook OpenWA').item.json.body;\nconst data = body.data || {};\nconst media = data.media || {};\n\nif (!media.data) {\n  throw new Error('media.data ausente');\n}\n\nlet imageBase64 = media.data;\nif (imageBase64.includes(',')) {\n  imageBase64 = imageBase64.split(',')[1];\n}\n\nconst imageBuffer = Buffer.from(imageBase64, 'base64');\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    caption: data.caption || 'Descreva esta imagem em detalhes',\n    inputType: 'image'\n  },\n  binary: {\n    data: {\n      data: imageBuffer.toString('base64'),\n      mimeType: media.mimetype || 'image/jpeg',\n      fileName: 'image.jpg'\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-220, 460],
+      "id": "process-image",
+      "name": "Processar Imagem"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "gpt-4o-mini"
+            },
+            {
+              "name": "messages",
+              "value": "={{ [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": $json.caption}, {\"type\": \"image_url\", \"image_url\": {\"url\": \"data:\" + $binary.data.mimeType + \";base64,\" + $binary.data.data}}]}] }}"
+            },
+            {
+              "name": "max_tokens",
+              "value": "300"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [40, 460],
+      "id": "vision-analysis",
+      "name": "Vision Analysis",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openai-api-key",
+          "name": "OpenAI API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $('Webhook OpenWA').item.json.body;\nconst data = body.data || {};\nconst visionText = $json.choices[0].message.content;\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    text: `[📷 IMAGEM]\\nAnálise:\\n${visionText}`,\n    inputType: 'image'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [280, 460],
+      "id": "format-image",
+      "name": "Formatar Imagem"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "merge",
+              "name": "chatId",
+              "value": "={{ $json.chatId }}",
+              "type": "string"
+            },
+            {
+              "id": "merge2",
+              "name": "from",
+              "value": "={{ $json.from }}",
+              "type": "string"
+            },
+            {
+              "id": "merge3",
+              "name": "messageId",
+              "value": "={{ $json.messageId }}",
+              "type": "string"
+            },
+            {
+              "id": "merge4",
+              "name": "text",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "merge5",
+              "name": "inputType",
+              "value": "={{ $json.inputType }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [520, 300],
+      "id": "merge-inputs",
+      "name": "Merge Inputs"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [760, 300],
+      "id": "ai-agent",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 500
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [760, 480],
+      "id": "groq-model",
+      "name": "Groq LLM",
+      "credentials": {
+        "groqApi": {
+          "id": "groq-api",
+          "name": "Groq API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.chatId }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [760, 640],
+      "id": "memory",
+      "name": "Memória Conversa"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "clean",
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "caseSensitive": false,
+                  "typeValidation": "strict"
+                },
+                "combinator": "or",
+                "conditions": [
+                  {
+                    "id": "check-think",
+                    "leftValue": "={{ $json.output }}",
+                    "rightValue": "<think>",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  },
+                  {
+                    "id": "check-thinking",
+                    "leftValue": "={{ $json.output }}",
+                    "rightValue": "<thinking>",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  },
+                  {
+                    "id": "check-cot",
+                    "leftValue": "={{ $json.output }}",
+                    "rightValue": "chain of thought",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [1000, 300],
+      "id": "detect-contamination",
+      "name": "🚨 SECURITY: Detect Contamination"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===================================================================\n// 🔒 SANITIZAÇÃO CRÍTICA DE SEGURANÇA\n// ===================================================================\n// Remove TODA informação sensível que nunca deve vazar para o cliente:\n// 1. Tags de raciocínio interno do modelo (<think>, <thinking>, etc)\n// 2. Chain-of-thought exposto\n// 3. Metadados de prompt ou lógica de negócio\n// 4. Dados sensíveis (CPF, CNPJ, documentos, números de conta, etc)\n// ===================================================================\n\nlet output = $json.output || '';\n\n// === STEP 1: Remove tags de raciocínio interno ===\nconst thinkingPatterns = [\n  /<think>.*?<\\/think>/gis,\n  /<thinking>.*?<\\/thinking>/gis,\n  /\\[THINKING\\].*?\\[\\/THINKING\\]/gis,\n  /\\(thinking:.*?\\)/gis,\n  /Chain of thought:.*?(?=\\n\\n|$)/gis,\n  /Here's my thinking:.*?(?=\\n\\n|$)/gis,\n  /Mental process:.*?(?=\\n\\n|$)/gis,\n  /Reasoning:.*?(?=\\n\\n|$)/gis\n];\n\nthinkingPatterns.forEach(pattern => {\n  output = output.replace(pattern, '');\n});\n\n// === STEP 2: Remove dados sensíveis (PII) ===\nconst piiPatterns = [\n  // CPF (formato: 000.000.000-00 ou 00000000000)\n  { pattern: /\\b\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}\\b/g, replacement: '[CPF REDACTED]' },\n  { pattern: /\\b\\d{11}\\b/g, replacement: '[CPF REDACTED]' },\n  // CNPJ (formato: 00.000.000/0000-00 ou 00000000000000)\n  { pattern: /\\b\\d{2}\\.\\d{3}\\.\\d{3}\\/\\d{4}-\\d{2}\\b/g, replacement: '[CNPJ REDACTED]' },\n  { pattern: /\\b\\d{14}\\b/g, replacement: '[CNPJ REDACTED]' },\n  // RENAVAM (11 dígitos)\n  { pattern: /\\bRENAVAM:\\s*\\d{11}\\b/gi, replacement: 'RENAVAM: [REDACTED]' },\n  // Placas de veículos (formato: ABC1234 ou ABC-1234)\n  { pattern: /\\b[A-Z]{3}[-\\s]?\\d[A-Z0-9]\\d{2}\\b/g, replacement: '[PLACA REDACTED]' },\n  // Números de conta bancária (genérico: 4-12 dígitos)\n  { pattern: /\\bConta:\\s*\\d{4,12}\\b/gi, replacement: 'Conta: [REDACTED]' },\n  // Emails\n  { pattern: /\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b/g, replacement: '[EMAIL REDACTED]' },\n  // Telefones BR (formato: (00) 00000-0000 ou 00000000000)\n  { pattern: /\\(?\\d{2}\\)?\\s?\\d{4,5}-?\\d{4}/g, replacement: '[TELEFONE REDACTED]' },\n  // Valores monetários altos (> R$ 1000) - pode indicar dados sensíveis\n  { pattern: /R\\$\\s*\\d{1,3}(?:\\.\\d{3})+,\\d{2}/g, replacement: 'R$ [VALOR REDACTED]' }\n];\n\npiiPatterns.forEach(({ pattern, replacement }) => {\n  output = output.replace(pattern, replacement);\n});\n\n// === STEP 3: Remove nomes próprios SE houver contexto de documento ===\n// (Evita falsos positivos com nomes genéricos em conversas normais)\nif (output.match(/documento|IPVA|RENAVAM|Placa|CPF|CNPJ/gi)) {\n  // Remove padrão \"Nome: [Nome Completo]\"\n  output = output.replace(/Nome:\\s*[A-Z][a-zà-ú]+(?:\\s[A-Z][a-zà-ú]+)+/gi, 'Nome: [REDACTED]');\n  // Remove padrão \"Contribuinte: [Nome Completo]\"\n  output = output.replace(/Contribuinte:\\s*[A-Z][a-zà-ú]+(?:\\s[A-Z][a-zà-ú]+)+/gi, 'Contribuinte: [REDACTED]');\n}\n\n// === STEP 4: Limpa espaços em branco e quebras duplicadas ===\noutput = output\n  .replace(/\\n{3,}/g, '\\n\\n')  // Max 2 quebras de linha consecutivas\n  .replace(/^\\s+|\\s+$/g, '')   // Trim início e fim\n  .trim();\n\n// === STEP 5: Validação final - se output ficou vazio ou muito curto ===\nif (!output || output.length < 10) {\n  output = 'Desculpe, houve um problema ao processar sua mensagem. Pode tentar novamente?';\n}\n\n// === STEP 6: Log de auditoria (NÃO expõe dados sensíveis) ===\nconst hadThinking = $json.output.match(/<think>|<thinking>/i) !== null;\nconst hadPII = piiPatterns.some(({ pattern }) => $json.output.match(pattern));\n\nconsole.log('[SECURITY] Sanitization applied:', {\n  hadThinking,\n  hadPII,\n  originalLength: $json.output.length,\n  cleanLength: output.length,\n  chatId: $('Merge Inputs').item.json.chatId,\n  timestamp: new Date().toISOString()\n});\n\n// === OUTPUT LIMPO E SEGURO ===\nreturn {\n  json: {\n    chatId: $('Merge Inputs').item.json.chatId,\n    text: output,\n    sanitized: true,\n    hadThinking,\n    hadPII\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1240, 200],
+      "id": "sanitize-output",
+      "name": "🔒 SANITIZE Output"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fallback: se passou direto (sem contaminação detectada), ainda aplica sanitização básica\nlet output = $json.output || '';\n\n// Remove apenas tags de raciocínio (sanitização leve)\noutput = output\n  .replace(/<think>.*?<\\/think>/gis, '')\n  .replace(/<thinking>.*?<\\/thinking>/gis, '')\n  .replace(/\\n{3,}/g, '\\n\\n')\n  .trim();\n\nreturn {\n  json: {\n    chatId: $('Merge Inputs').item.json.chatId,\n    text: output,\n    sanitized: false\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1240, 400],
+      "id": "fallback-clean",
+      "name": "Basic Clean (Fallback)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://openwa-api:2785/api/sessions/{{ $('Webhook OpenWA').item.json.body.sessionId }}/messages/send-text",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [1480, 300],
+      "id": "send-whatsapp",
+      "name": "📤 Enviar WhatsApp",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openwa-api-key",
+          "name": "OpenWA API Auth"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook OpenWA": {
+      "main": [
+        [
+          {
+            "node": "Detectar Tipo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detectar Tipo": {
+      "main": [
+        [
+          {
+            "node": "Processar Texto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Processar Áudio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Processar Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Texto": {
+      "main": [
+        [
+          {
+            "node": "Merge Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Áudio": {
+      "main": [
+        [
+          {
+            "node": "Transcrever Áudio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrever Áudio": {
+      "main": [
+        [
+          {
+            "node": "Formatar Áudio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Áudio": {
+      "main": [
+        [
+          {
+            "node": "Merge Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Imagem": {
+      "main": [
+        [
+          {
+            "node": "Vision Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vision Analysis": {
+      "main": [
+        [
+          {
+            "node": "Formatar Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Imagem": {
+      "main": [
+        [
+          {
+            "node": "Merge Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Inputs": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "🚨 SECURITY: Detect Contamination",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq LLM": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memória Conversa": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 SECURITY: Detect Contamination": {
+      "main": [
+        [
+          {
+            "node": "🔒 SANITIZE Output",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        [],
+        [],
+        [
+          {
+            "node": "Basic Clean (Fallback)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔒 SANITIZE Output": {
+      "main": [
+        [
+          {
+            "node": "📤 Enviar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic Clean (Fallback)": {
+      "main": [
+        [
+          {
+            "node": "📤 Enviar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-08-27T23:59:00.000Z",
+  "versionId": "secure-v1"
+}

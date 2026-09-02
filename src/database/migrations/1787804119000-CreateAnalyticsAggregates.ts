@@ -11,7 +11,7 @@ import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
 export class CreateAnalyticsAggregates1787804119000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     const dialect = queryRunner.connection.options.type;
-    const isSqlite = dialect === 'better-sqlite3' || dialect === 'sqlite';
+    const isSqlite = dialect === 'better-sqlite3' || (dialect as string) === 'sqlite';
 
     await queryRunner.createTable(
       new Table({

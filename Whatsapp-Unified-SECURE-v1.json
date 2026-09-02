@@ -1,0 +1,824 @@
+{
+  "name": "WhatsApp Unified Bot - Multimodal (OpenWA + Groq) - ULTRA COMPLETE",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-message",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        3360,
+        5440
+      ],
+      "id": "ec0a50a8-2fb4-458a-a993-175dc5e57fa7",
+      "name": "Webhook OpenWA",
+      "webhookId": "71e84c0d-8924-446e-94c8-a8aeb268c779"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "text-check",
+                    "leftValue": "={{ $json.body.data.type }}",
+                    "rightValue": "text",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "voice-check",
+                    "leftValue": "={{ $json.body.data.type }}",
+                    "rightValue": "voice",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "voice"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "image-check",
+                    "leftValue": "={{ $json.body.data.type }}",
+                    "rightValue": "image",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "image"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "document-check",
+                    "leftValue": "={{ $json.body.data.type }}",
+                    "rightValue": "document",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "document"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        3600,
+        5440
+      ],
+      "id": "e9ae3145-c2ac-4060-889d-41f0536cf6d3",
+      "name": "Detectar Tipo"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === TEXTO ===\nconst body = $('Webhook OpenWA').item.json.body;\nconst data = body.data || {};\n\nconsole.log('[TEXT] chatId:', data.chatId);\nconsole.log('[TEXT] message:', data.body);\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    text: data.body || '',\n    inputType: 'text'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3840,
+        5280
+      ],
+      "id": "e4245ff0-c6e9-4e79-88a1-6e020a77d587",
+      "name": "Processar Texto"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === ÁUDIO ===\n// O áudio JÁ VEM em base64 no webhook, não precisa baixar!\nconst body = $('Webhook OpenWA').item.json.body;\nconst data = body.data || {};\nconst media = data.media || {};\n\nif (!media.data) {\n  console.log('[AUDIO] Erro: media.data não encontrado');\n  return {\n    json: {\n      skip: true,\n      reason: 'media.data ausente'\n    }\n  };\n}\n\n// Converter base64 → Buffer → Binary\nconst audioBase64 = media.data;\nconst audioBuffer = Buffer.from(audioBase64, 'base64');\n\nconsole.log('[AUDIO] Audio base64 length:', audioBase64.length);\nconsole.log('[AUDIO] Audio buffer length:', audioBuffer.length);\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    inputType: 'voice'\n  },\n  binary: {\n    data: {\n      data: audioBuffer.toString('base64'),\n      mimeType: media.mimetype || 'audio/ogg',\n      fileName: 'audio.ogg'\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3840,
+        5440
+      ],
+      "id": "0fc0a2db-797f-491e-be2e-744ea350791c",
+      "name": "Processar Áudio"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "groqApi",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "=data"
+            },
+            {
+              "name": "model",
+              "value": "whisper-large-v3-turbo"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        4096,
+        5440
+      ],
+      "id": "7c453866-3ce9-48b8-b00b-4c1bbfa4db20",
+      "name": "Transcrever Áudio (Groq API)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YXggRCXzzkjcD2MN",
+          "name": "Header Auth account"
+        },
+        "groqApi": {
+          "id": "4H66gdwqyInkOE5m",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === ÁUDIO TRANSCRITO ===\nconst body = $('Webhook OpenWA').item.json.body;\nconst data = body.data || {};\nconst transcription = $json.text || '';\n\nconsole.log('[AUDIO] Transcription:', transcription);\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    text: `[🎤 ÁUDIO TRANSCRITO]\\n${transcription}`,\n    inputType: 'voice'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4336,
+        5440
+      ],
+      "id": "79838c3d-fc41-4591-a3de-998f642835b8",
+      "name": "Formatar Áudio"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === IMAGEM ===\n// A imagem JÁ VEM em base64 no webhook, não precisa baixar!\nconst body = $('Webhook OpenWA').item.json.body;\nconst data = body.data || {};\nconst media = data.media || {};\n\nif (!media.data) {\n  console.log('[IMAGE] Erro: media.data não encontrado');\n  return {\n    json: {\n      skip: true,\n      reason: 'media.data ausente'\n    }\n  };\n}\n\n// Remover prefixo data:image se existir\nlet imageBase64 = media.data;\nif (imageBase64.includes(',')) {\n  imageBase64 = imageBase64.split(',')[1];\n}\n\nconsole.log('[IMAGE] Base64 length:', imageBase64.length);\n\n// Criar estrutura binary para o Vision node\nconst imageBuffer = Buffer.from(imageBase64, 'base64');\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    caption: data.caption || 'Descreva esta imagem em detalhes',\n    inputType: 'image'\n  },\n  binary: {\n    data: {\n      data: imageBuffer.toString('base64'),\n      mimeType: media.mimetype || 'image/jpeg',\n      fileName: 'image.jpg'\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3840,
+        5600
+      ],
+      "id": "29f0a288-a4b8-41c5-b5f9-833361adde59",
+      "name": "Processar Imagem"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI",
+          "cachedResultUrl": ""
+        },
+        "inputType": "base64",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        4096,
+        5600
+      ],
+      "id": "fe186115-b3e8-4ee4-b7e4-df45619b6409",
+      "name": "Analisar Imagem (Vision)",
+      "credentials": {
+        "openAiApi": {
+          "id": "ckGQ3f7QGrVcycb9",
+          "name": "OpenAI account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === IMAGEM ANALISADA ===\nconst body = $('Webhook OpenWA').item.json.body;\nconst data = body.data || {};\nconst visionResult = $json.content || '';\n\nconsole.log('[IMAGE] Vision result:', visionResult);\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    text: `[📷 IMAGEM]\\nAnálise:\\n${visionResult}`,\n    inputType: 'image'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4336,
+        5600
+      ],
+      "id": "92a850c1-c22b-4442-949a-2755397166b3",
+      "name": "Formatar Imagem"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === DOCUMENTO ===\n// O PDF JÁ VEM em base64 no webhook, não precisa baixar!\nconst body = $('Webhook OpenWA').item.json.body;\nconst data = body.data || {};\nconst media = data.media || {};\n\nif (!media.data) {\n  console.log('[DOCUMENT] Erro: media.data não encontrado');\n  return {\n    json: {\n      skip: true,\n      reason: 'media.data ausente'\n    }\n  };\n}\n\n// ✅ FIX: Verificar mimetype em media.mimetype (não data.mimetype)\nif (media.mimetype !== 'application/pdf') {\n  console.log('[DOCUMENT] Não é PDF:', media.mimetype);\n  return {\n    json: {\n      chatId: data.chatId,\n      from: data.from,\n      messageId: data.id,\n      notPdf: true,\n      mimetype: media.mimetype\n    }\n  };\n}\n\n// Converter base64 → Buffer → Binary\nconst pdfBase64 = media.data;\nconst pdfBuffer = Buffer.from(pdfBase64, 'base64');\n\nconsole.log('[DOCUMENT] PDF base64 length:', pdfBase64.length);\nconsole.log('[DOCUMENT] PDF buffer length:', pdfBuffer.length);\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    filename: data.body || media.filename || 'document.pdf',\n    inputType: 'document'\n  },\n  binary: {\n    data: {\n      data: pdfBuffer.toString('base64'),\n      mimeType: 'application/pdf',\n      fileName: data.body || media.filename || 'document.pdf'\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3840,
+        5760
+      ],
+      "id": "3fdc6f87-d0cd-464a-a2bd-4e942806b67d",
+      "name": "Processar Documento"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        4096,
+        5760
+      ],
+      "id": "a08177ba-1ab2-467f-9191-ad92d394168f",
+      "name": "Extrair PDF"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === PDF EXTRAÍDO ===\nconst body = $('Webhook OpenWA').item.json.body;\nconst data = body.data || {};\nconst pdfText = $json.text || '';\n\nconsole.log('[DOCUMENT] PDF text length:', pdfText.length);\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    text: `[📄 DOCUMENTO PDF]\\nConteúdo:\\n${pdfText.substring(0, 3000)}...`,\n    inputType: 'document'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4336,
+        5760
+      ],
+      "id": "24aa2c27-af68-4199-973b-2ef5da42d6db",
+      "name": "Formatar PDF"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "pdf-check",
+                    "leftValue": "={{ $json.notPdf }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "any",
+                      "operation": "notExists"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "pdf"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "not-pdf",
+                    "leftValue": "={{ $json.notPdf }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "rejeitado"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        4096,
+        5920
+      ],
+      "id": "9b616872-c3de-4a4a-b36c-6aacd9e4d02e",
+      "name": "Verificar PDF"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === REJEITAR NÃO-PDF ===\nconst body = $('Webhook OpenWA').item.json.body;\nconst data = body.data || {};\n\nreturn {\n  json: {\n    chatId: data.chatId,\n    from: data.from,\n    messageId: data.id,\n    text: `[❌ DOCUMENTO NÃO SUPORTADO]\\nTipo: ${$json.mimetype || 'desconhecido'}\\n\\nPor favor, envie apenas arquivos PDF.`,\n    inputType: 'document'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4336,
+        5920
+      ],
+      "id": "7263a696-13af-425e-895c-3b6d6d3a9203",
+      "name": "Rejeitar Não-PDF"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Você é assistente virtual do escritório Dr. Dênis Bernardo, especializado em direito previdenciário e de família.\n\n🎯 MISSÃO:\nFazer triagem inicial, identificar necessidades e coletar dados básicos.\n\n📬 REGRAS:\n1. TOM: Informal mas respeitoso, como vizinho de confiança\n2. LINGUAGEM: Português simples, sem juridiquês. Máximo 2-3 frases\n3. ERROS DO CLIENTE: Entenda contexto, não corrija português\n4. NUNCA invente status de processo ou prometa resultado\n\nSe não souber: \"Vou anotar e o Dr. Denis te responde.\"\n\nSEMPRE termine: \"Precisa de mais alguma coisa?\""
+            },
+            {
+              "message": "={{ $json.text }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        4784,
+        5440
+      ],
+      "id": "f5c69550-0e79-4c16-b6bc-d0bc1eb2d4f7",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "qwen/qwen3.6-27b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        4784,
+        5600
+      ],
+      "id": "3d4f3ce3-2eeb-4243-8dab-a54fe48fc162",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "4H66gdwqyInkOE5m",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.2,
+      "position": [
+        4784,
+        5760
+      ],
+      "id": "42357345-7003-4787-9cb4-b5b35d587420",
+      "name": "Memória Conversa"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =================================================================\n// 🔒 SANITIZAÇÃO DE SEGURANÇA + LIMPEZA DE RESPOSTA\n// =================================================================\nconst llmOutput = $input.first().json;\nlet text = llmOutput.text || llmOutput.output || '';\n\nconsole.log('[CLEAN] ===== INICIO =====');\nconsole.log('[CLEAN] Raw LLM output length:', text.length);\nconsole.log('[CLEAN] First 200 chars:', text.substring(0, 200));\n\nconst originalLength = text.length;\nlet redactionCount = 0;\nconst redactedTypes = [];\n\n// === STEP 1: Remover tags de raciocínio interno ===\nif (text.includes('<think>')) {\n  console.log('[SECURITY] Found <think> tag, removing...');\n  const lastCloseTag = text.lastIndexOf('</think>');\n  if (lastCloseTag !== -1) {\n    text = text.substring(lastCloseTag + 8);\n  }\n  text = text.replace(/<think>[\\s\\S]*?<\\/think>/g, '');\n  text = text.trim().replace(/^\\n+/, '');\n  redactionCount++;\n  redactedTypes.push('THINKING_TAGS');\n}\n\n// === STEP 2: Detectar contexto sensível ===\nconst sensitiveKeywords = [\n  'cpf', 'cnpj', 'rg', 'cnh', 'renavam', 'placa',\n  'documento', 'protocolo', 'certidão'\n];\nconst lowerText = text.toLowerCase();\nconst hasSensitiveContext = sensitiveKeywords.some(kw => lowerText.includes(kw));\n\nif (hasSensitiveContext) {\n  console.log('[SECURITY] Sensitive context detected, applying PII redaction...');\n  \n  // === STEP 3: Redactar dados sensíveis (PII) ===\n  const piiPatterns = [\n    // CPF: 000.000.000-00 ou 00000000000\n    { pattern: /\\b\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}\\b/g, replacement: '[CPF REDACTED]', name: 'CPF' },\n    { pattern: /\\bCPF:?\\s*\\d{11}\\b/gi, replacement: 'CPF: [REDACTED]', name: 'CPF' },\n    \n    // CNPJ: 00.000.000/0000-00 ou 00000000000000\n    { pattern: /\\b\\d{2}\\.\\d{3}\\.\\d{3}\\/\\d{4}-\\d{2}\\b/g, replacement: '[CNPJ REDACTED]', name: 'CNPJ' },\n    { pattern: /\\bCNPJ:?\\s*\\d{14}\\b/gi, replacement: 'CNPJ: [REDACTED]', name: 'CNPJ' },\n    \n    // RENAVAM: 11 dígitos\n    { pattern: /\\bRENAVAM:?\\s*\\d{11}\\b/gi, replacement: 'RENAVAM: [REDACTED]', name: 'RENAVAM' },\n    \n    // Placas: ABC1234 ou ABC-1234\n    { pattern: /\\bPlaca:?\\s*[A-Z]{3}[-\\s]?\\d[A-Z0-9]\\d{2}\\b/gi, replacement: 'Placa: [REDACTED]', name: 'PLACA' },\n    { pattern: /\\b[A-Z]{3}[-\\s]?\\d[A-Z0-9]\\d{2}\\b/g, replacement: '[PLACA REDACTED]', name: 'PLACA' },\n    \n    // Emails\n    { pattern: /\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b/g, replacement: '[EMAIL REDACTED]', name: 'EMAIL' },\n    \n    // Telefones: (00) 00000-0000\n    { pattern: /\\(?\\d{2}\\)?\\s?\\d{4,5}-?\\d{4}/g, replacement: '[TELEFONE REDACTED]', name: 'TELEFONE' },\n    \n    // Valores monetários altos (>= R$ 1.000,00)\n    { pattern: /R\\$\\s*\\d{1,3}(?:[.,]\\d{3})+[.,]\\d{2}/g, replacement: 'R$ [VALOR REDACTED]', name: 'VALOR' },\n    \n    // Datas sensíveis (nascimento, documentos)\n    { pattern: /\\b(?:Nascimento|Data):?\\s*\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4}\\b/gi, replacement: '[DATA REDACTED]', name: 'DATA' },\n    \n    // Nomes completos após labels\n    { pattern: /\\b(Nome|Contribuinte|Proprietário|Titular):?\\s*([A-ZÀ-Ú][a-zà-ú]+(?:\\s+[A-ZÀ-Ú][a-zà-ú]+){1,5})/gi, \n      replacement: '$1: [NOME REDACTED]', name: 'NOME' }\n  ];\n  \n  piiPatterns.forEach(({ pattern, replacement, name }) => {\n    const matches = text.match(pattern);\n    if (matches && matches.length > 0) {\n      text = text.replace(pattern, replacement);\n      redactionCount += matches.length;\n      if (!redactedTypes.includes(name)) {\n        redactedTypes.push(name);\n      }\n      console.log(`[SECURITY] Redacted ${matches.length} ${name}`);\n    }\n  });\n}\n\n// === STEP 4: Limpar formatação ===\ntext = text\n  .replace(/\\n{3,}/g, '\\n\\n')\n  .replace(/\\s{3,}/g, '  ')\n  .trim();\n\n// === STEP 5: Limitar tamanho (WhatsApp limit) ===\nif (text.length > 4000) {\n  console.log('[CLEAN] Truncating to 4000 chars');\n  text = text.substring(0, 3997) + '...';\n}\n\n// === STEP 6: Validação final ===\nif (!text || text.trim().length === 0) {\n  console.error('[CLEAN] ERROR: Text is empty after cleaning!');\n  text = 'Desculpa, tive um problema ao processar. Pode repetir?';\n}\n\n// === AUDITORIA DE SEGURANÇA ===\nif (redactionCount > 0) {\n  console.log('[SECURITY] ===== AUDIT REPORT =====');\n  console.log('[SECURITY] Redaction count:', redactionCount);\n  console.log('[SECURITY] Redacted types:', redactedTypes.join(', '));\n  console.log('[SECURITY] Original length:', originalLength);\n  console.log('[SECURITY] Final length:', text.length);\n  console.log('[SECURITY] Reduction:', originalLength - text.length, 'chars');\n  console.log('[SECURITY] ===================================');\n}\n\nconsole.log('[CLEAN] Final text length:', text.length);\nconsole.log('[CLEAN] Final text:', text);\nconsole.log('[CLEAN] ===== FIM =====');\n\n// ✅ Buscar chatId e messageId do WEBHOOK\nconst webhookData = $('Webhook OpenWA').item.json.body;\nconst chatId = webhookData.data?.chatId;\nconst messageId = webhookData.data?.id;\n\nreturn {\n  json: {\n    chatId: chatId,\n    text: text,\n    messageId: messageId,\n    _security: {\n      sanitized: redactionCount > 0,\n      redactionCount: redactionCount,\n      redactedTypes: redactedTypes\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5024,
+        5440
+      ],
+      "id": "b9094bcc-0377-40c2-b26c-d75f2e454ae7",
+      "name": "Limpar Resposta"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://openwa-api:2785/api/sessions/{{ $('Webhook OpenWA').item.json.body.sessionId }}/messages/send-text",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        5264,
+        5440
+      ],
+      "id": "85efdefb-4cde-45b8-9d3e-3408f2002b3a",
+      "name": "Enviar WhatsApp",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cXIuL3xvVouAzPFH",
+          "name": "OpenWA Credentials based on APIKEY"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "whatsapp_chat_history",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "chat_id": "={{ $(\"Webhook OpenWA\").item.json.body.data.chatId }}",
+            "message_id": "={{ $(\"Webhook OpenWA\").item.json.body.data.id }}",
+            "sender_type": "user",
+            "message_text": "={{ $(\"Webhook OpenWA\").item.json.body.data.body || $(\"Webhook OpenWA\").item.json.body.data.caption || \"[media]\" }}",
+            "input_type": "={{ $(\"Webhook OpenWA\").item.json.body.data.type }}",
+            "metadata": "={{ JSON.stringify($(\"Webhook OpenWA\").item.json.body.data) }}"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3360,
+        5600
+      ],
+      "id": "log-user-msg-001",
+      "name": "💾 Log Mensagem Usuário",
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIAL_ID",
+          "name": "PostgreSQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "whatsapp_chat_history",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "chat_id": "={{ $json.chatId }}",
+            "message_id": "={{ $json.messageId + \"_bot\" }}",
+            "sender_type": "bot",
+            "message_text": "={{ $json.text }}",
+            "input_type": "response",
+            "metadata": "={{ JSON.stringify({ security: $json._security }) }}"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        5144,
+        5440
+      ],
+      "id": "log-bot-resp-001",
+      "name": "💾 Log Resposta Bot",
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIAL_ID",
+          "name": "PostgreSQL account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook OpenWA": {
+      "main": [
+        [
+          {
+            "node": "Detectar Tipo",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "💾 Log Mensagem Usuário",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detectar Tipo": {
+      "main": [
+        [
+          {
+            "node": "Processar Texto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Processar Áudio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Processar Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Processar Documento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Texto": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Áudio": {
+      "main": [
+        [
+          {
+            "node": "Transcrever Áudio (Groq API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrever Áudio (Groq API)": {
+      "main": [
+        [
+          {
+            "node": "Formatar Áudio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Áudio": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Imagem": {
+      "main": [
+        [
+          {
+            "node": "Analisar Imagem (Vision)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analisar Imagem (Vision)": {
+      "main": [
+        [
+          {
+            "node": "Formatar Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Imagem": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Documento": {
+      "main": [
+        [
+          {
+            "node": "Verificar PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar PDF": {
+      "main": [
+        [
+          {
+            "node": "Extrair PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rejeitar Não-PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair PDF": {
+      "main": [
+        [
+          {
+            "node": "Formatar PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar PDF": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rejeitar Não-PDF": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Limpar Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpar Resposta": {
+      "main": [
+        [
+          {
+            "node": "💾 Log Resposta Bot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memória Conversa": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Log Resposta Bot": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "SECURE-v1.0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "02d9666f8711649c31d2d72134e61c25e121bba27bfe666252f7f75146ecc9d0"
+  },
+  "nodeGroups": [],
+  "id": "IEoQv0PI4N3DS8GB",
+  "tags": []
+}

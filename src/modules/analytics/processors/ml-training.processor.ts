@@ -33,9 +33,9 @@ export class MLTrainingProcessor extends WorkerHost {
         `Training completed: val_accuracy=${result.valAccuracy.toFixed(4)}, duration=${result.trainingDurationMs}ms`,
       );
 
-      return result;
+      // Just log the result, don't return it (void return type)
     } catch (error) {
-      this.logger.error(`Training failed: ${error.message}`, error.stack);
+      this.logger.error(`Training failed: ${(error as Error).message}`, (error as Error).stack);
       throw error;
     }
   }

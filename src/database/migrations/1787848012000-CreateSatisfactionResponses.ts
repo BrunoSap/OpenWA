@@ -14,6 +14,7 @@ import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
 export class CreateSatisfactionResponses1787848012000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     const dialect = queryRunner.connection.options.type;
+    const isSqlite = (dialect as string) === 'sqlite' || dialect === 'better-sqlite3';
 
     await queryRunner.createTable(
       new Table({
@@ -21,9 +22,9 @@ export class CreateSatisfactionResponses1787848012000 implements MigrationInterf
         columns: [
           {
             name: 'id',
-            type: dialect === 'sqlite' ? 'varchar' : 'uuid',
+            type: isSqlite ? 'varchar' : 'uuid',
             isPrimary: true,
-            default: dialect === 'sqlite' ? "(lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))))" : 'gen_random_uuid()',
+            default: isSqlite ? "(lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))))" : 'gen_random_uuid()',
           },
           {
             name: 'conversation_id',
@@ -51,13 +52,13 @@ export class CreateSatisfactionResponses1787848012000 implements MigrationInterf
           },
           {
             name: 'score',
-            type: dialect === 'sqlite' ? 'integer' : 'int',
+            type: isSqlite ? 'integer' : 'int',
             isNullable: false,
           },
           {
             name: 'responded_at',
-            type: dialect === 'sqlite' ? 'datetime' : 'timestamp',
-            default: dialect === 'sqlite' ? "datetime('now')" : 'NOW()',
+            type: isSqlite ? 'datetime' : 'timestamp',
+            default: isSqlite ? "datetime('now')" : 'NOW()',
           },
         ],
       }),

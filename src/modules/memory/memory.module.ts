@@ -45,7 +45,8 @@ import { createLogger } from '../../common/services/logger.service';
     ConversationMemoryService,
     MemorySummarizationService,
     MemoryCleanupService,
-    RetentionCleanupProcessor,
+    // TEMPORARILY DISABLED: BullMQ processors require Redis
+    // RetentionCleanupProcessor,
   ],
   exports: [ConversationMemoryService, MemorySummarizationService, MemoryCleanupService],
 })
@@ -53,14 +54,14 @@ export class MemoryModule implements OnModuleInit {
   private readonly logger = createLogger('MemoryModule');
 
   constructor(
-    @InjectQueue(QUEUE_NAMES.RETENTION)
-    private readonly retentionQueue: Queue,
+    // TEMPORARILY DISABLED: Queue injection requires Redis
+    // @InjectQueue(QUEUE_NAMES.RETENTION)
+    // private readonly retentionQueue: Queue,
   ) {}
 
   async onModuleInit() {
-    // Enqueue a repeatable job for retention cleanup. Runs every 24h (86400000ms).
-    // The jobId makes the repeat configuration idempotent — re-enqueuing with the same jobId
-    // updates the existing schedule rather than creating duplicates.
+    // TEMPORARILY DISABLED: Queue scheduling requires Redis
+    /*
     await this.retentionQueue.add(
       'cleanup-cycle',
       {},
@@ -69,10 +70,11 @@ export class MemoryModule implements OnModuleInit {
           pattern: '0 2 * * *', // Daily at 2 AM (cron format)
         },
         jobId: 'retention-cleanup-repeatable',
-      } as any, // BullMQ types don't expose repeat in JobsOptions, but it's supported at runtime
+      } as any,
     );
 
     this.logger.log('Retention cleanup repeatable job registered (daily at 2 AM)');
+    */
   }
 }
 

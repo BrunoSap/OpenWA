@@ -39,7 +39,7 @@ describe('UsageService', () => {
       providers: [
         UsageService,
         {
-          provide: getRepositoryToken(AnalyticsEvent, 'dataConnection'),
+          provide: getRepositoryToken(AnalyticsEvent, 'data'),
           useValue: mockAnalyticsRepo,
         },
         {
@@ -54,7 +54,7 @@ describe('UsageService', () => {
     }).compile();
 
     service = module.get<UsageService>(UsageService);
-    analyticsEventRepository = module.get(getRepositoryToken(AnalyticsEvent, 'dataConnection'));
+    analyticsEventRepository = module.get(getRepositoryToken(AnalyticsEvent, 'data'));
     tenantService = module.get(TenantService);
     clsService = module.get(ClsService);
 

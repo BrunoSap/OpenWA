@@ -200,6 +200,7 @@ RUN npm ci --omit=dev --ignore-scripts \
     && node scripts/patch-wwebjs-block.js \
     && node scripts/patch-baileys-appstate.js \
     && node scripts/patch-baileys-newsletter-create.js \
+    && npm rebuild @tensorflow/tfjs-node --build-addon-from-source \
     && npm cache clean --force
 
 # Replace the npm the base image bundles. npm is not on the request path — the entrypoint runs

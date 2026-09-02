@@ -1,0 +1,350 @@
+{
+  "name": "WhatsApp Bot - Error Handler",
+  "meta": {
+    "instanceId": "openwa-error-handler",
+    "versionId": "1.0.0",
+    "environment": "production",
+    "priority": "critical",
+    "status": "active",
+    "owner": "bruno-ricciardi",
+    "category": "monitoring",
+    "createdAt": "2026-08-28T18:00:00Z"
+  },
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "error-trigger-001",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "notes": "Captura TODOS os erros dos workflows configurados"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "whatsapp_errors",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "workflow_id": "={{ $json.workflow.id }}",
+            "workflow_name": "={{ $json.workflow.name }}",
+            "execution_id": "={{ $json.execution.id }}",
+            "error_message": "={{ $json.execution.error.message }}",
+            "error_stack": "={{ $json.execution.error.stack }}",
+            "last_node": "={{ $json.execution.lastNodeExecuted }}",
+            "chat_id": "={{ $json.data?.chatId || 'N/A' }}",
+            "input_data": "={{ JSON.stringify($json.data || {}) }}",
+            "base_url": "={{ $env.BASE_URL }}",
+            "environment": "production",
+            "created_at": "={{ $now }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "log-error-db-001",
+      "name": "💾 Log Error to PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 300],
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIAL_ID",
+          "name": "OpenWA PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as error_count FROM whatsapp_errors WHERE created_at > NOW() - INTERVAL '5 minutes' AND workflow_name = '{{ $('Error Trigger').item.json.workflow.name }}'"
+      },
+      "id": "check-error-rate-001",
+      "name": "📊 Check Error Rate (5min)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [680, 300],
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIAL_ID",
+          "name": "OpenWA PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "rate-threshold",
+              "leftValue": "={{ parseInt($json.error_count) }}",
+              "rightValue": 10,
+              "operator": {
+                "type": "number",
+                "operation": "largerEqual"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-high-error-rate-001",
+      "name": "⚠️ IF Error Rate > 10/5min",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Preparar alerta estruturado\nconst errorTrigger = $('Error Trigger').item.json;\nconst errorRate = $json.error_count;\n\nconst alert = {\n  severity: 'CRITICAL',\n  workflow: errorTrigger.workflow.name,\n  errorCount: errorRate,\n  timeWindow: '5 minutes',\n  lastError: errorTrigger.execution.error.message,\n  lastNode: errorTrigger.execution.lastNodeExecuted,\n  executionUrl: `${$env.BASE_URL}/workflow/${errorTrigger.workflow.id}/executions/${errorTrigger.execution.id}`,\n  timestamp: new Date().toISOString(),\n  \n  // Mensagem formatada\n  message: `🚨 CRITICAL: High Error Rate Detected\\n\\n` +\n           `Workflow: ${errorTrigger.workflow.name}\\n` +\n           `Errors: ${errorRate} in last 5 minutes\\n` +\n           `Last Error: ${errorTrigger.execution.error.message}\\n` +\n           `Node: ${errorTrigger.execution.lastNodeExecuted}\\n\\n` +\n           `View: ${$env.BASE_URL}/workflow/${errorTrigger.workflow.id}/executions/${errorTrigger.execution.id}`\n};\n\nreturn { json: alert };"
+      },
+      "id": "format-alert-001",
+      "name": "📝 Format Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200],
+      "notes": "Formatar alerta para Slack/Telegram/Email"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "whatsapp_alerts",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "alert_type": "high_error_rate",
+            "severity": "={{ $json.severity }}",
+            "workflow_name": "={{ $json.workflow }}",
+            "message": "={{ $json.message }}",
+            "metadata": "={{ JSON.stringify($json) }}",
+            "created_at": "={{ $now }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "log-alert-001",
+      "name": "💾 Log Alert",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1340, 200],
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIAL_ID",
+          "name": "OpenWA PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.message }}"
+      },
+      "id": "send-slack-alert-001",
+      "name": "📢 Send Slack Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1560, 200],
+      "credentials": {
+        "slackApi": {
+          "id": "SLACK_CREDENTIAL_ID",
+          "name": "Slack Bot"
+        }
+      },
+      "notes": "Opcional - configurar se usar Slack"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determinar se é retryable\nconst errorTrigger = $('Error Trigger').item.json;\nconst errorMsg = errorTrigger.execution.error.message || '';\nconst errorCode = errorTrigger.execution.error.httpCode;\n\n// Erros retryable\nconst retryablePatterns = [\n  /timeout/i,\n  /ECONNREFUSED/i,\n  /ETIMEDOUT/i,\n  /503/,\n  /502/,\n  /429/,  // Rate limit\n  /500/\n];\n\nconst isRetryable = retryablePatterns.some(pattern => \n  pattern.test(errorMsg) || pattern.test(String(errorCode))\n);\n\nreturn {\n  json: {\n    isRetryable: isRetryable,\n    errorMessage: errorMsg,\n    errorCode: errorCode,\n    shouldRetry: isRetryable && !errorMsg.includes('max retries'),\n    ...errorTrigger\n  }\n};"
+      },
+      "id": "analyze-error-001",
+      "name": "🔍 Analyze Error Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "should-retry",
+              "leftValue": "={{ $json.shouldRetry }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-retryable-001",
+      "name": "🔄 IF Retryable",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "wait-before-retry-001",
+      "name": "⏱️ Wait 5s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1560, 380]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nota: Retry real precisa ser implementado manualmente\n// ou via re-trigger do workflow original\n// Este é apenas um placeholder\n\nreturn {\n  json: {\n    message: 'Retry logic placeholder - implement manual retry or workflow re-trigger',\n    originalError: $json\n  }\n};"
+      },
+      "id": "retry-logic-001",
+      "name": "🔄 Retry Logic (Placeholder)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 380],
+      "notes": "Implementar retry real se necessário"
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "💾 Log Error to PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Log Error to PostgreSQL": {
+      "main": [
+        [
+          {
+            "node": "📊 Check Error Rate (5min)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Check Error Rate (5min)": {
+      "main": [
+        [
+          {
+            "node": "⚠️ IF Error Rate > 10/5min",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚠️ IF Error Rate > 10/5min": {
+      "main": [
+        [
+          {
+            "node": "📝 Format Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔍 Analyze Error Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Format Alert": {
+      "main": [
+        [
+          {
+            "node": "💾 Log Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Log Alert": {
+      "main": [
+        [
+          {
+            "node": "📢 Send Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Analyze Error Type": {
+      "main": [
+        [
+          {
+            "node": "🔄 IF Retryable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 IF Retryable": {
+      "main": [
+        [
+          {
+            "node": "⏱️ Wait 5s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏱️ Wait 5s": {
+      "main": [
+        [
+          {
+            "node": "🔄 Retry Logic (Placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": true,
+    "saveDataErrorExecution": "all",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    "monitoring",
+    "error-handler",
+    "production",
+    "critical"
+  ],
+  "triggerCount": 1,
+  "id": "error-handler-workflow",
+  "versionId": "1.0.0"
+}

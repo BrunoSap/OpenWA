@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Delete, Query, Param, Body, Res, Sse } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { interval, map, Observable } from 'rxjs';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
@@ -528,6 +528,7 @@ export class AnalyticsController {
             stage: s.stage,
             users: s.users,
             dropOffRate: s.dropOffRate,
+            previousStageUsers: s.previousStageUsers,
           })),
           conversionRate,
         });
@@ -585,17 +586,17 @@ export class AnalyticsController {
     }
 
     const experiment = this.experimentRepository.create({
-      experiment_id: body.experiment_id,
       name: body.name,
       description: body.description,
       variant_count: body.variant_count || 2,
       variant_names: body.variant_names,
       start_date: new Date(body.start_date),
-      end_date: body.end_date ? new Date(body.end_date) : null,
+      end_date: body.end_date ? new Date(body.end_date) : undefined,
       active: true,
     });
 
-    return this.experimentRepository.save(experiment);
+    const saved = await this.experimentRepository.save(experiment);
+    return saved;
   }
 
   /**

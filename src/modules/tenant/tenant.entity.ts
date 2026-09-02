@@ -44,7 +44,7 @@ export class Tenant {
   @Column({ type: 'varchar', length: 50, default: 'none', name: 'payment_status' })
   paymentStatus!: string;
 
-  @Column({ type: 'timestamp', nullable: true, name: 'grace_period_ends_at' })
+  @Column({ type: 'datetime', nullable: true, name: 'grace_period_ends_at' })
   gracePeriodEndsAt!: Date | null;
 
   @Column({ type: 'boolean', default: false, name: 'allow_overage' })

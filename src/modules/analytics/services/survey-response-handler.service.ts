@@ -78,7 +78,7 @@ export class SurveyResponseHandler {
       return true; // Message was a survey response and was processed
     } catch (error) {
       // Check if it's a duplicate response (UNIQUE constraint violation)
-      if (error.code === '23505' || error.code === 'SQLITE_CONSTRAINT') {
+      if ((error as any).code === '23505' || (error as any).code === 'SQLITE_CONSTRAINT') {
         this.logger.warn(
           `Duplicate ${surveyType.toUpperCase()} response ignored for conversation ${conversationId}`,
         );

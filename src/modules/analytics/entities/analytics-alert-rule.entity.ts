@@ -40,6 +40,6 @@ export class AnalyticsAlertRule {
   @Column(jsonColumnType())
   notification_channels!: Record<string, any>;
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @CreateDateColumn({ type: 'datetime' })
   created_at!: Date;
 }

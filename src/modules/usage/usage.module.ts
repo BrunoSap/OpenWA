@@ -10,7 +10,7 @@ import { TenantModule } from '../tenant/tenant.module';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([AnalyticsEvent], 'dataConnection'),
+    TypeOrmModule.forFeature([AnalyticsEvent], 'data'),
     TenantModule,
   ],
   providers: [UsageService],

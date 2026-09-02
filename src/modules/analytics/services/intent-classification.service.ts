@@ -89,7 +89,7 @@ Return ONLY the intent name, nothing else.`,
     this.logger.log(`Creating batch request for ${messages.length} messages`);
 
     // Create batch request
-    const batch = await this.anthropic.messages.batches.create({
+    const batch = await (this.anthropic.messages as any).batches.create({
       requests: messages.map((msg) => ({
         custom_id: msg.id,
         params: {
@@ -104,13 +104,13 @@ Return ONLY the intent name, nothing else.`,
     this.logger.log(`Batch created: ${batch.id}, status: ${batch.processing_status}`);
 
     // Poll for completion
-    let batchStatus = await this.anthropic.messages.batches.retrieve(batch.id);
+    let batchStatus = await (this.anthropic.messages as any).batches.retrieve(batch.id);
     const maxPolls = 60; // 5 minutes max (5s intervals)
     let pollCount = 0;
 
     while (batchStatus.processing_status !== 'ended' && pollCount < maxPolls) {
       await this.sleep(5000);
-      batchStatus = await this.anthropic.messages.batches.retrieve(batch.id);
+      batchStatus = await (this.anthropic.messages as any).batches.retrieve(batch.id);
       pollCount++;
       this.logger.log(`Poll ${pollCount}: Batch status ${batchStatus.processing_status}`);
     }
@@ -124,7 +124,7 @@ Return ONLY the intent name, nothing else.`,
     let totalCacheReadTokens = 0;
     let totalInputTokens = 0;
 
-    for await (const result of this.anthropic.messages.batches.results(batch.id)) {
+    for await (const result of (this.anthropic.messages as any).batches.results(batch.id)) {
       if (result.result.type === 'succeeded') {
         const message = result.result.message;
         const content = message.content[0];

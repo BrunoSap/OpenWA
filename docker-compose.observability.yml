@@ -37,6 +37,41 @@ services:
       - prometheus
     restart: unless-stopped
 
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: openwa-node-exporter
+    command:
+      - '--path.rootfs=/host'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - openwa-network
+    restart: unless-stopped
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: openwa-postgres-exporter
+    environment:
+      - DATA_SOURCE_NAME=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@openwa-postgres:5432/openwa?sslmode=disable
+    networks:
+      - openwa-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  redis_exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: openwa-redis-exporter
+    environment:
+      - REDIS_ADDR=redis://openwa-redis:6379
+    networks:
+      - openwa-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
 volumes:
   prometheus_data:
   grafana_data:

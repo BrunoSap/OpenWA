@@ -2,7 +2,7 @@ import { NodeSDK } from '@opentelemetry/sdk-node';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { ExpressInstrumentation } from '@opentelemetry/instrumentation-express';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { Resource } from '@opentelemetry/resources';
+import { resourceFromAttributes } from '@opentelemetry/resources';
 import { SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_SERVICE_INSTANCE_ID } from '@opentelemetry/semantic-conventions';
 
 export function initTelemetry() {
@@ -20,7 +20,7 @@ export function initTelemetry() {
   });
 
   const sdk = new NodeSDK({
-    resource: new Resource({
+    resource: resourceFromAttributes({
       [SEMRESATTRS_SERVICE_NAME]: serviceName,
       [SEMRESATTRS_SERVICE_INSTANCE_ID]: replicaId,
       'replica.id': replicaId,  // Custom attribute for filtering
@@ -29,8 +29,8 @@ export function initTelemetry() {
     instrumentations: [
       new HttpInstrumentation({
         // Inject traceparent header in outgoing requests
-        requestHook: (span, request) => {
-          span.setAttribute('http.client_ip', request.headers['x-forwarded-for'] || 'unknown');
+        requestHook: (span, request: any) => {
+          span.setAttribute('http.client_ip', request.headers?.['x-forwarded-for'] || 'unknown');
           span.setAttribute('http.replica', replicaId);
         },
       }),
